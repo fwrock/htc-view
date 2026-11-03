@@ -1,0 +1,150 @@
+{
+  "fixture": "Synthetic walking legs on a two-link street network, production geometry and render layers",
+  "east": {
+    "tick": 15,
+    "vehicles": [
+      {
+        "vehicleId": "walker",
+        "vehicleKind": "Person",
+        "position": [
+          2.0003845515712153,
+          47.99996042987544
+        ],
+        "linkId": "sidewalk:walk:start:end:2:48:2.000999927520752:48.000999450683594:false",
+        "angle": -90,
+        "speedKmh": 5,
+        "freeSpeedKmh": 40,
+        "co2Grams": 0,
+        "noxGrams": 0,
+        "pm25Grams": 0
+      },
+      {
+        "vehicleId": "return",
+        "vehicleKind": "Person",
+        "position": [
+          2.000962294395075,
+          48.000742135376434
+        ],
+        "linkId": "sidewalk:walk:end:start:2.000999927520752:48.000999450683594:2:48:false",
+        "angle": -180,
+        "speedKmh": 5,
+        "freeSpeedKmh": 40,
+        "co2Grams": 0,
+        "noxGrams": 0,
+        "pm25Grams": 0
+      },
+      {
+        "vehicleId": "car",
+        "vehicleKind": "Car",
+        "position": [
+          2.0004599666664,
+          47.999985610863796
+        ],
+        "lane": 0,
+        "linkId": "east",
+        "angle": -90,
+        "speedKmh": 30,
+        "freeSpeedKmh": 30,
+        "co2Grams": 0,
+        "noxGrams": 0,
+        "pm25Grams": 0
+      }
+    ],
+    "paths": [
+      [
+        [
+          2,
+          47.99996042987544
+        ],
+        [
+          2.000999927520752,
+          47.99996042987544
+        ],
+        [
+          2.001037559917349,
+          48
+        ],
+        [
+          2.001037559917349,
+          48.000999450683594
+        ]
+      ],
+      [
+        [
+          2.000962294395075,
+          48.000999450683594
+        ],
+        [
+          2.000962294395075,
+          48
+        ],
+        [
+          2.000999927520752,
+          48.00003957012456
+        ],
+        [
+          2,
+          48.00003957012456
+        ]
+      ]
+    ]
+  },
+  "north": {
+    "tick": 65,
+    "vehicles": [
+      {
+        "vehicleId": "walker",
+        "vehicleKind": "Person",
+        "position": [
+          2.001037559917349,
+          48.000399048029024
+        ],
+        "linkId": "sidewalk:walk:start:end:2:48:2.000999927520752:48.000999450683594:false",
+        "angle": 0,
+        "speedKmh": 5,
+        "freeSpeedKmh": 40,
+        "co2Grams": 0,
+        "noxGrams": 0,
+        "pm25Grams": 0
+      },
+      {
+        "vehicleId": "return",
+        "vehicleKind": "Person",
+        "position": [
+          2.000897287970679,
+          48.00003957012456
+        ],
+        "linkId": "sidewalk:walk:end:start:2.000999927520752:48.000999450683594:2:48:false",
+        "angle": 90,
+        "speedKmh": 5,
+        "freeSpeedKmh": 40,
+        "co2Grams": 0,
+        "noxGrams": 0,
+        "pm25Grams": 0
+      },
+      {
+        "vehicleId": "car",
+        "vehicleKind": "Car",
+        "position": [
+          2.0006599521735304,
+          47.999985610863796
+        ],
+        "lane": 0,
+        "linkId": "east",
+        "angle": -90,
+        "speedKmh": 30,
+        "freeSpeedKmh": 30,
+        "co2Grams": 0,
+        "noxGrams": 0,
+        "pm25Grams": 0
+      }
+    ]
+  },
+  "errors": [],
+  "frontend_tests": 27,
+  "ui_typecheck": "passed",
+  "standalone_build": "passed",
+  "nominal_sidewalk_width_m": 1.8,
+  "sidewalk_gap_m": 0.3,
+  "walking_route": "display-only inference from the road network; reported times preserved"
+}

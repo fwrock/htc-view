@@ -10,8 +10,8 @@ function ThemeProvider({
   return (
     <NextThemesProvider
       attribute="class"
-      defaultTheme="system"
-      enableSystem
+      defaultTheme="dark"
+      enableSystem={false}
       disableTransitionOnChange
       {...props}
     >
@@ -47,7 +47,8 @@ function ThemeHotkey() {
         return
       }
 
-      if (event.key.toLowerCase() !== "d") {
+      // some browsers (autofill, datalist picks) dispatch keydown without a key
+      if (typeof event.key !== "string" || event.key.toLowerCase() !== "d") {
         return
       }
 

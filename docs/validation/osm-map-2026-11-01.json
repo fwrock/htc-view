@@ -1,0 +1,163 @@
+{
+  "kind": "bounded_engineering_integration",
+  "osm": {
+    "status": "passed",
+    "run_id": "bcebd1d85d41419ba54cff5f8ae8a330",
+    "scenario": "default:osm-sao-paulo-roads",
+    "series": 6,
+    "variables": [
+      "count",
+      "speed",
+      "acceleration",
+      "deceleration",
+      "gap",
+      "flow"
+    ],
+    "checked_http_values": 6480,
+    "missing_values_preserved": 3970,
+    "departed_cars": 16,
+    "progress": {
+      "completed": 2,
+      "created_at": 1793541749.799058,
+      "current_index": 2,
+      "current_stage": "Publish measured results",
+      "data_source": {
+        "scenario": "osm-sao-paulo-roads",
+        "type": "htc"
+      },
+      "error": null,
+      "finished_at": 1793541771.841504,
+      "name": "HTC \u00b7 osm-sao-paulo-roads",
+      "percent": 100.0,
+      "run_id": "bcebd1d85d41419ba54cff5f8ae8a330",
+      "stages": [
+        {
+          "elapsed": 21.96365075599897,
+          "name": "HTC full simulation and aggregation",
+          "started_at": 1793541749.8754308,
+          "status": "completed"
+        },
+        {
+          "elapsed": 0.0022785320034017786,
+          "name": "Publish measured results",
+          "started_at": 1793541771.8391433,
+          "status": "completed"
+        }
+      ],
+      "started_at": 1793541749.7997382,
+      "status": "completed",
+      "total": 2
+    },
+    "view_http_render": "passed",
+    "browser_interaction": "not tested",
+    "engine_sha256": "185796d3e15e712bc07ba38149292c6ffcce215e272dde2a8499fac78856a640",
+    "receipt": "receipt.json",
+    "replay": {
+      "status": "passed",
+      "scenario_id": "simedape-bcebd1d85d41419ba54cff5f8ae8a330",
+      "run_id": "bcebd1d85d41419ba54cff5f8ae8a330",
+      "links": 6,
+      "nodes": 4,
+      "segments": 24,
+      "vehicles": 16,
+      "receipt_sha256": "69af7f24664c763997e591aeeeed4ccabc1ecda5219509f77aa5f673ee024b62",
+      "committed_sha256": "9f1c868d1914410c9239d4c427dc63a5dedf43e9fe97962ccf41257cdb34636c",
+      "browser_interaction": "not tested"
+    }
+  },
+  "osm_geometry": {
+    "status": "passed",
+    "scenario_id": "simedape-bcebd1d85d41419ba54cff5f8ae8a330",
+    "mode": "osm",
+    "links": 6,
+    "segments": 24,
+    "normal_worker_position_comparisons": 504,
+    "maximum_curve_chord_deviation_metres": 255.15223882629817,
+    "osm_way_ids": [
+      "4774379",
+      "4774398"
+    ],
+    "layer": "PathLayer",
+    "link_picking_metadata": "passed",
+    "browser_webgl": "not tested by this script"
+  },
+  "standalone": {
+    "status": "passed",
+    "run_id": "815621b601c14af19b3fa0bc22dc5737",
+    "scenario": "default:native-two-corridors-map",
+    "series": 4,
+    "variables": [
+      "count",
+      "speed",
+      "acceleration",
+      "deceleration",
+      "gap",
+      "flow"
+    ],
+    "checked_http_values": 864,
+    "missing_values_preserved": 361,
+    "departed_cars": 16,
+    "progress": {
+      "completed": 2,
+      "created_at": 1793542221.006385,
+      "current_index": 2,
+      "current_stage": "Publish measured results",
+      "data_source": {
+        "scenario": "native-two-corridors-map",
+        "type": "htc"
+      },
+      "error": null,
+      "finished_at": 1793542239.6141582,
+      "name": "HTC \u00b7 native-two-corridors-map",
+      "percent": 100.0,
+      "run_id": "815621b601c14af19b3fa0bc22dc5737",
+      "stages": [
+        {
+          "elapsed": 18.600663400000485,
+          "name": "HTC full simulation and aggregation",
+          "started_at": 1793542221.0123613,
+          "status": "completed"
+        },
+        {
+          "elapsed": 0.0010187769948970526,
+          "name": "Publish measured results",
+          "started_at": 1793542239.6130798,
+          "status": "completed"
+        }
+      ],
+      "started_at": 1793542221.0071492,
+      "status": "completed",
+      "total": 2
+    },
+    "view_http_render": "passed",
+    "browser_interaction": "not tested",
+    "engine_sha256": "185796d3e15e712bc07ba38149292c6ffcce215e272dde2a8499fac78856a640",
+    "receipt": "receipt.json",
+    "replay": {
+      "status": "passed",
+      "scenario_id": "simedape-815621b601c14af19b3fa0bc22dc5737",
+      "run_id": "815621b601c14af19b3fa0bc22dc5737",
+      "links": 4,
+      "nodes": 5,
+      "segments": 32,
+      "vehicles": 16,
+      "receipt_sha256": "5edb619bef0b35f7fbb3192efcc6380df8dcecf3c57a9221f757158b31a3de55",
+      "committed_sha256": "b52f26c3fde30bd6781c208436242df8c6db66358370b637f43eba581a6718a7",
+      "browser_interaction": "not tested"
+    }
+  },
+  "standalone_geometry": {
+    "status": "passed",
+    "scenario_id": "simedape-815621b601c14af19b3fa0bc22dc5737",
+    "mode": "standalone",
+    "links": 4,
+    "segments": 32,
+    "normal_worker_position_comparisons": 0,
+    "maximum_curve_chord_deviation_metres": 0,
+    "osm_way_ids": [],
+    "layer": "LineLayer",
+    "link_picking_metadata": "passed",
+    "browser_webgl": "not tested by this script"
+  },
+  "browser_acceptance": "Final combined acceptance requested from Claude; not tested by Codex browser tool"
+}

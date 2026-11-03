@@ -1,0 +1,37 @@
+[
+  {
+    "stopId" : "htcaid_busstop_line0_a",
+    "kind" : "BusStop",
+    "label" : "Line 0 Terminal A",
+    "lat" : -23.55,
+    "lon" : -46.624
+  },
+  {
+    "stopId" : "htcaid_busstop_line0_b",
+    "kind" : "BusStop",
+    "label" : "Line 0 Terminal B",
+    "lat" : -23.55,
+    "lon" : -46.627
+  },
+  {
+    "stopId" : "htcaid_busstation_line0",
+    "kind" : "BusStation",
+    "label" : "mini_bus_line_0 (tiny validation)",
+    "lat" : -23.55,
+    "lon" : -46.624
+  },
+  {
+    "stopId" : "htcaid_subwaystation_line0_a",
+    "kind" : "SubwayStation",
+    "label" : "Line 0 Terminal",
+    "lat" : -23.544,
+    "lon" : -46.627
+  },
+  {
+    "stopId" : "htcaid_subwaystation_line0_b",
+    "kind" : "SubwayStation",
+    "label" : "Line 0 Destination",
+    "lat" : -23.547,
+    "lon" : -46.627
+  }
+]

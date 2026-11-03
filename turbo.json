@@ -1,6 +1,17 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
+  "globalEnv": [
+    "HTC_SCENARIOS_DIR",
+    "HTC_REPORT_PARQUET_DIRECTORY",
+    "HTC_REPLAY_OUT_DIR",
+    "HTC_REPLAY_ETL_DIR",
+    "SIMEDAPE_API_URL",
+    "NEXT_PUBLIC_HTC_MAP_STYLE_URL",
+    "NEXT_PUBLIC_HTC_MAP_BACKGROUND",
+    "NEXT_PUBLIC_HTC_OSM_TILE_URL",
+    "NEXT_PUBLIC_HTC_MAP_ATTRIBUTION"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

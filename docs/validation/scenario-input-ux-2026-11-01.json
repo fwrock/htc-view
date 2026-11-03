@@ -1,0 +1,34 @@
+{
+  "status": "passed",
+  "routes": {
+    "/simulator/import": {
+      "http": 200,
+      "visible_labels_checked": 4
+    },
+    "/simulator/import?flow=existing": {
+      "http": 200,
+      "visible_labels_checked": 4
+    },
+    "/simulator/import?flow=combine": {
+      "http": 200,
+      "visible_labels_checked": 2
+    },
+    "/simulator/import?flow=population": {
+      "http": 200,
+      "visible_labels_checked": 3
+    },
+    "/simulator/import?flow=osm": {
+      "http": 200,
+      "visible_labels_checked": 5
+    },
+    "/simulator/import?job=c109bf1cb0784c7d8d87b7af9e13f95e": {
+      "http": 200,
+      "visible_labels_checked": 1
+    }
+  },
+  "production_build": "passed",
+  "typescript": "passed",
+  "modified_import_files_eslint": "passed",
+  "browser_interaction": "not tested; no browser available",
+  "backend_or_engine_changes": false
+}

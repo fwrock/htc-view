@@ -1,0 +1,37 @@
+[
+  {
+    "stopId" : "4",
+    "kind" : "BusStop",
+    "label" : "Line 0 Terminal A",
+    "lat" : -23.55,
+    "lon" : -46.624
+  },
+  {
+    "stopId" : "5",
+    "kind" : "BusStop",
+    "label" : "Line 0 Terminal B",
+    "lat" : -23.55,
+    "lon" : -46.627
+  },
+  {
+    "stopId" : "1",
+    "kind" : "BusStation",
+    "label" : "mini_bus_line_0 (tiny validation)",
+    "lat" : -23.55,
+    "lon" : -46.624
+  },
+  {
+    "stopId" : "49",
+    "kind" : "SubwayStation",
+    "label" : "Line 0 Terminal",
+    "lat" : -23.544,
+    "lon" : -46.627
+  },
+  {
+    "stopId" : "50",
+    "kind" : "SubwayStation",
+    "label" : "Line 0 Destination",
+    "lat" : -23.547,
+    "lon" : -46.627
+  }
+]

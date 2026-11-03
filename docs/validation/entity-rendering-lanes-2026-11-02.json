@@ -1,0 +1,108 @@
+{
+  "before": {
+    "tick": 0,
+    "zoom": 20,
+    "car": {
+      "vehicleId": "0",
+      "vehicleKind": "Car",
+      "position": [
+        1.9999200582075112,
+        47.9999712217276
+      ],
+      "lane": 0,
+      "linkId": "east",
+      "angle": -90,
+      "speedKmh": 0,
+      "freeSpeedKmh": 50,
+      "co2Grams": 0,
+      "noxGrams": 0,
+      "pm25Grams": 0
+    },
+    "pixel": [
+      480.78215821584064,
+      424.13883634408313
+    ],
+    "atlasLoaded": true
+  },
+  "middle": {
+    "tick": 30,
+    "zoom": 20,
+    "car": {
+      "vehicleId": "0",
+      "vehicleKind": "Car",
+      "position": [
+        2.000120061581134,
+        48
+      ],
+      "lane": 1,
+      "linkId": "east",
+      "angle": -90,
+      "speedKmh": 0,
+      "freeSpeedKmh": 50,
+      "co2Grams": 0,
+      "noxGrams": 0,
+      "pm25Grams": 0
+    },
+    "pixel": [
+      779.048807144165,
+      359.99999996026355
+    ],
+    "atlasLoaded": true
+  },
+  "after": {
+    "tick": 60,
+    "zoom": 20,
+    "car": {
+      "vehicleId": "0",
+      "vehicleKind": "Car",
+      "position": [
+        2.0003200649547566,
+        48.0000287782724
+      ],
+      "lane": 2,
+      "linkId": "east",
+      "angle": -90,
+      "speedKmh": 0,
+      "freeSpeedKmh": 50,
+      "co2Grams": 0,
+      "noxGrams": 0,
+      "pm25Grams": 0
+    },
+    "pixel": [
+      1077.315456032753,
+      295.86112797260284
+    ],
+    "atlasLoaded": true
+  },
+  "zoom18": {
+    "tick": 60,
+    "zoom": 18,
+    "car": {
+      "vehicleId": "0",
+      "vehicleKind": "Car",
+      "position": [
+        2.0003200649547566,
+        48.0000287782724
+      ],
+      "lane": 2,
+      "linkId": "east",
+      "angle": -90,
+      "speedKmh": 0,
+      "freeSpeedKmh": 50,
+      "co2Grams": 0,
+      "noxGrams": 0,
+      "pm25Grams": 0
+    },
+    "pixel": [
+      719.3288640081882,
+      343.9652819931507
+    ],
+    "atlasLoaded": true
+  },
+  "errors": [],
+  "fixture": "Synthetic MICRO lane observations rendered through the production deck.gl layers; no engine run in this check",
+  "frontend_tests": 21,
+  "etl_tests": 11,
+  "ui_typecheck": "passed",
+  "standalone_build": "passed"
+}

@@ -1,0 +1,170 @@
+{
+  "import_client": {
+    "status": "passed",
+    "api_client": "HTC View import client",
+    "scenario": "osm-demo:osm-screen-v1",
+    "preview_job_id": "c109bf1cb0784c7d8d87b7af9e13f95e",
+    "publish_job_id": "b88870195c99406dacf7aca307b156ae",
+    "preview_sha256": "1587b328c00a522ed4ce48899e7ff0880ac79ddf1bd7687c63dc5ebe40a001b8",
+    "network": {
+      "component_sizes": [
+        17
+      ],
+      "directed_links": 34,
+      "length_metres": 6293.8751396841035,
+      "simulation_nodes": 17,
+      "source_way_to_directed_links": {
+        "4774379": 6,
+        "4774380": 2,
+        "4774398": 2,
+        "4774399": 4,
+        "4774401": 2,
+        "4774402": 6,
+        "4806461": 2,
+        "4806558": 4,
+        "8456568": 2,
+        "495554374": 2,
+        "947831127": 2
+      },
+      "weak_components": 1
+    },
+    "browser_interaction": "not tested",
+    "native_run_id": "bade65025d6d47dcab5420bc125a9af6"
+  },
+  "osm": {
+    "status": "passed",
+    "run_id": "bade65025d6d47dcab5420bc125a9af6",
+    "scenario": "osm-demo:osm-screen-v1",
+    "series": 34,
+    "variables": [
+      "count",
+      "speed",
+      "acceleration",
+      "deceleration",
+      "gap",
+      "flow"
+    ],
+    "checked_http_values": 36720,
+    "missing_values_preserved": 24036,
+    "departed_cars": 16,
+    "view_http_render": "passed",
+    "browser_interaction": "not tested",
+    "engine_sha256": "04696778768a2bff7ca9cbb9f0adf0daa949488d16f1190f2c66050329350a6b",
+    "receipt": "receipt.json",
+    "replay": {
+      "status": "passed",
+      "scenario_id": "simedape-bade65025d6d47dcab5420bc125a9af6",
+      "run_id": "bade65025d6d47dcab5420bc125a9af6",
+      "links": 34,
+      "nodes": 17,
+      "segments": 30,
+      "vehicles": 16,
+      "receipt_sha256": "5b16746eba34bf4a8ab48ee116f66ebbf09b2605d6c7caeb72974ea5ce80d723",
+      "committed_sha256": "2109ca792184088c843bf2b78335a32b596001696fed82723424409304022af5",
+      "browser_interaction": "not tested"
+    }
+  },
+  "standalone": {
+    "status": "passed",
+    "run_id": "39659a188eba40e9a1af46431255d29f",
+    "scenario": "osm-demo:native-two-corridors-map",
+    "series": 4,
+    "variables": [
+      "count",
+      "speed",
+      "acceleration",
+      "deceleration",
+      "gap",
+      "flow"
+    ],
+    "checked_http_values": 864,
+    "missing_values_preserved": 361,
+    "departed_cars": 16,
+    "view_http_render": "passed",
+    "browser_interaction": "not tested",
+    "engine_sha256": "04696778768a2bff7ca9cbb9f0adf0daa949488d16f1190f2c66050329350a6b",
+    "receipt": "receipt.json",
+    "replay": {
+      "status": "passed",
+      "scenario_id": "simedape-39659a188eba40e9a1af46431255d29f",
+      "run_id": "39659a188eba40e9a1af46431255d29f",
+      "links": 4,
+      "nodes": 5,
+      "segments": 32,
+      "vehicles": 16,
+      "receipt_sha256": "004e8770b9ae8e2bcb9b41f5d297f6e6ff363c7618203600366c29dce2d06501",
+      "committed_sha256": "b409934ea8ff2fe1112196c75953fe0347ac8b9b6bed32e52bebba68ed73d56f",
+      "browser_interaction": "not tested"
+    }
+  },
+  "osm_geometry": {
+    "status": "passed",
+    "scenario_id": "simedape-bade65025d6d47dcab5420bc125a9af6",
+    "mode": "osm",
+    "links": 34,
+    "segments": 30,
+    "normal_worker_position_comparisons": 630,
+    "maximum_curve_chord_deviation_metres": 89.57728873866137,
+    "osm_way_ids": [
+      "4774379",
+      "4774380",
+      "4774398",
+      "4774399",
+      "4774401",
+      "4774402",
+      "4806461",
+      "4806558",
+      "495554374",
+      "8456568",
+      "947831127"
+    ],
+    "layer": "PathLayer",
+    "link_picking_metadata": "passed",
+    "browser_webgl": "not tested by this script"
+  },
+  "standalone_geometry": {
+    "status": "passed",
+    "scenario_id": "simedape-39659a188eba40e9a1af46431255d29f",
+    "mode": "standalone",
+    "links": 4,
+    "segments": 32,
+    "normal_worker_position_comparisons": 0,
+    "maximum_curve_chord_deviation_metres": 0,
+    "osm_way_ids": [],
+    "layer": "LineLayer",
+    "link_picking_metadata": "passed",
+    "browser_webgl": "not tested by this script"
+  },
+  "view_http": {
+    "status": "passed",
+    "routes": {
+      "/simulator/import": 200,
+      "/simulator/runs?scenario=osm-demo%3Aosm-screen-v1": 200,
+      "/simulator/replay?scenario=simedape-bade65025d6d47dcab5420bc125a9af6": 200
+    },
+    "import_client_bundle": "preview/publish routes and API :5003 present",
+    "browser_interaction": "not tested"
+  },
+  "kind": "bounded_osm_import_view_engineering_integration",
+  "recorded": "2026-11-01",
+  "simedape_acceleration": false,
+  "validation": {
+    "python_api_tests_passed": 26,
+    "new_import_http_tests": 7,
+    "next_production_build": "passed (webpack, isolated source copy)",
+    "new_page_map_client_and_script_eslint": "passed",
+    "browser_webgl": "pending; no browser available"
+  },
+  "demo": {
+    "view": "http://localhost:3001/simulator/import",
+    "api": "http://localhost:5003",
+    "state": "/tmp/htc-osm-view-20261101",
+    "shared_stack_restarted": false
+  },
+  "raw_evidence_directory": "/tmp/htc-osm-screen-check-20261101",
+  "remaining": [
+    "Fresh browser acceptance of import/map/inspection/reload/scenario handoff in both modes",
+    "Coordinated reload of shared API :5000 before using new page on shared :3000",
+    "Broader OSM rules/demand/city-scale acceptance; general map editor; live native stream/pacing"
+  ]
+}

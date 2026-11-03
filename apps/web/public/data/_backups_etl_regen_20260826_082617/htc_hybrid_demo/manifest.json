@@ -1,0 +1,25 @@
+{
+  "scenarioId" : "htc_hybrid_demo",
+  "tickMin" : 0,
+  "tickMax" : 248344,
+  "ticksPerSecond" : 1.0,
+  "vehicleCount" : 7,
+  "hasEmissions" : false,
+  "hasSignals" : false,
+  "hasStops" : true,
+  "hasRailLinks" : true,
+  "boundingBox" : {
+    "minLat" : -23.55,
+    "minLon" : -46.63,
+    "maxLat" : -23.544,
+    "maxLon" : -46.624
+  },
+  "files" : {
+    "links" : "links.arrow",
+    "segments" : "segments.arrow",
+    "nodes" : "nodes.arrow",
+    "signals" : "signals.json",
+    "stops" : "stops.json",
+    "railLinks" : "rail_links.arrow"
+  }
+}
