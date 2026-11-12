@@ -63,7 +63,8 @@ function logFiles(): LogFileDescriptor[] {
     list.unshift(
       { id: "stack-engine", label: "HTC engine", path: `${directory}/engine.log` },
       { id: "stack-bus-live", label: "HTC Bus Live", path: `${directory}/bus-live.log` },
-      { id: "stack-simedape", label: "SimEDaPE API", path: `${directory}/simedape.log` },
+      { id: "stack-simedape", label: "SimEDaPE Python API", path: `${directory}/simedape.log` },
+      { id: "stack-simedape-scala", label: "SimEDaPE Scala API", path: `${directory}/simedape-scala.log` },
       { id: "stack-view", label: "HTC View", path: `${directory}/view.log` },
     )
   }

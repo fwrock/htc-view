@@ -16,6 +16,9 @@ import { useLiveSegments } from "./live/useLiveSegments"
 import { useLivePlaybackStore } from "./timeline/livePlaybackStore"
 import { useLivePlaybackLoop } from "./timeline/useLivePlaybackLoop"
 import { LiveTimelineScrubber } from "./timeline/LiveTimelineScrubber"
+import { getSimulationStatus, getSimulationConfig } from "@/lib/htc-api"
+import { latestRecordedBase, liveStreamUrl } from "@/lib/live-session"
+import { getSimulations } from "@/lib/simedape-api"
 import { LIVE_WS_URL } from "@/lib/live-config"
 
 interface StaticData {
@@ -53,10 +56,31 @@ export function LiveViewer() {
   const { t: translateText } = useI18n()
 
   const [scenarioId, setScenarioId] = useState<string>(scenarioIdFromUrl)
+  const [reportId, setReportId] = useState<string | null>(() => typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("simulationId"))
   const [bundledScenarios, setBundledScenarios] = useState<string[]>([])
   const [staticData, setStaticData] = useState<StaticData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [representation, setRepresentation] = useState<VehicleRepresentation>("sprite")
+
+  useEffect(() => {
+    let cancelled = false
+    const poll = async () => {
+      try {
+        const [status, config] = await Promise.all([getSimulationStatus(), getSimulationConfig()])
+        const id = String((config.config as unknown as { id?: string } | null)?.id ?? "")
+        if (!cancelled && status.simulationId && (id === scenarioId || id.startsWith(scenarioId + "-"))) {
+          setReportId(status.simulationId)
+          return
+        }
+        // Experiments own a separate engine. Its recorded report UUID is discoverable as soon as flow events flush.
+        const latest = latestRecordedBase((await getSimulations()).simulations, scenarioId)
+        if (!cancelled && latest) setReportId(latest)
+      } catch { /* keep captured data if the engine temporarily restarts */ }
+    }
+    void poll()
+    const timer = setInterval(poll, 2000)
+    return () => { cancelled = true; clearInterval(timer) }
+  }, [scenarioId])
 
   useEffect(() => {
     listBundledScenarios().then(setBundledScenarios)
@@ -101,11 +125,11 @@ export function LiveViewer() {
   }, [scenarioId])
 
   const { segments, latestTick, connectionState, transit } = useLiveSegments(
-    `${LIVE_WS_URL}${LIVE_WS_URL.includes("?") ? "&" : "?"}simulationId=${encodeURIComponent(scenarioId)}`,
+    liveStreamUrl(LIVE_WS_URL, reportId ?? ""),
     staticData?.links ?? emptyLinks,
     staticData?.nodes ?? emptyNodes,
     staticData?.manifest.ticksPerSecond ?? 1,
-    { enabled: !!staticData, simulationId: scenarioId, railLinks: staticData?.railLinks }
+    { enabled: !!staticData && !!reportId, simulationId: reportId ?? undefined, railLinks: staticData?.railLinks, windowTicks: (staticData?.manifest.tickMax ?? 86400) + 1 }
   )
 
   const currentTick = useLivePlaybackStore((s) => s.currentTick)
@@ -122,8 +146,11 @@ export function LiveViewer() {
 
   // Switching scenarios re-creates the segment store and starts a fresh clock.
   useEffect(() => {
-    useLivePlaybackStore.getState().reset()
-  }, [scenarioId])
+    const playback = useLivePlaybackStore.getState()
+    playback.reset()
+    playback.setSpeedMultiplier(30)
+    playback.play()
+  }, [scenarioId, reportId])
 
   const freeSpeedLookup = useMemo(
     () => (staticData ? buildFreeSpeedLookup(staticData.links) : new Map<string, number>()),
@@ -132,6 +159,7 @@ export function LiveViewer() {
 
   function handleScenarioChange(id: string) {
     setScenarioId(id)
+    setReportId(null)
     const params = new URLSearchParams(window.location.search)
     params.set("scenario", id)
     window.history.replaceState(null, "", `?${params.toString()}`)

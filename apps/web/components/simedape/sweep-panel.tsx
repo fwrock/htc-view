@@ -1,5 +1,6 @@
 "use client"
 
+import { ReportDownloads } from "@/components/metrics/report-downloads"
 import { useI18n } from "@/components/i18n-provider"
 
 import { useEffect, useMemo, useState } from "react"
@@ -133,7 +134,8 @@ export function SweepResults({ runId }: { runId: string }) {
   const unit = kind === "mape" ? "MAPE %" : "erro agregado %"
   return (
     <ExportContext.Provider value={meta}>
-      <div className="flex flex-col gap-3">
+      <div data-report-root className="flex flex-col gap-3">
+        <ReportDownloads />
         <p className="text-xs font-medium">{translateText("Resultado da varredura")}</p>
         <div className="grid gap-3 sm:grid-cols-3">
           <Stat label={translateText("Parciais")} value={String(table.scenarios.length)} sub={translateText(table.scenarios.map((s) => s.label).join(" · "))} />
@@ -148,7 +150,7 @@ export function SweepResults({ runId }: { runId: string }) {
           {ranked.length > 2 * EXTREMES && <button type="button" className="text-[11px] underline" onClick={() => setShowAll((v) => !v)}>{showAll ? translateText("só as {0} melhores e {1} piores", { 0: EXTREMES, 1: EXTREMES }) : translateText("todas as {0}", { 0: ranked.length })}</button>}
         </div>
         <Panel title={translateText("Erro × percentual da parcial · {0}", { 0: metricLabel })} hint={translateText("Menor é melhor. Cada linha é uma variação; o eixo é o percentual da amostra de cada parcial.{0}", { 0: !showAll && ranked.length > 2 * EXTREMES ? translateText(" Linhas cheias: as {0} melhores; tracejadas: as {1} piores.", { 0: EXTREMES, 1: EXTREMES }) : "" })}
-          data={{ kind: "table", columns: ["variação", ...table.scenarios.map((s) => `${s.label} (${unit})`)], rows: ranked.map((r) => [r.m, ...(table[kind][metric]?.[r.m] ?? [])]) }}>
+          data={{ kind: "table", plot: "row-lines", columns: ["variação", ...table.scenarios.map((s) => `${s.label} (${unit})`)], rows: ranked.map((r) => [r.m, ...(table[kind][metric]?.[r.m] ?? [])]) }}>
           <Lines table={table} methods={shown} metric={metric} kind={kind} dashedFrom={!showAll && ranked.length > 2 * EXTREMES ? EXTREMES : undefined} />
         </Panel>
         <Panel title={translateText("Ranking e cobertura")} hint={translateText("Ordenado pelo erro médio entre as parciais. Cobertura = % das séries estimadas.")}

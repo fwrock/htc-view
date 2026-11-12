@@ -1,5 +1,6 @@
 "use client"
 
+import { ReportDownloads } from "@/components/metrics/report-downloads"
 import { useI18n } from "@/components/i18n-provider"
 
 import { useEffect, useMemo, useState } from "react"
@@ -95,7 +96,8 @@ export function ClusteringReportView({ runId, runName }: { runId: string; runNam
 
   return (
     <ExportContext.Provider value={meta}>
-      <div className="flex flex-col gap-3">
+      <div data-report-root className="flex flex-col gap-3">
+        <ReportDownloads />
         <p className="text-xs font-medium">{translateText("Relatório da clusterização")}</p>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Stat label={translateText("Séries")} value={f(r.n_series, 0, intlLocale)} sub={translateText("{0} intervalos", { 0: r.series_length })} />
@@ -170,6 +172,7 @@ export function ClusteringReportView({ runId, runName }: { runId: string; runNam
                 data={{
                   kind: "table",
                   columns: ["intervalo", "centróide", ...list.map((m, i) => `${m.label ?? `série ${m.index}`} (#${i + 1}, dist ${m.distance.toFixed(3)})`)],
+                  plot: "column-lines",
                   rows: detail.centroid.map((c, t) => [t, c, ...list.map((m) => m.series[t] ?? null)]),
                 }}
               >

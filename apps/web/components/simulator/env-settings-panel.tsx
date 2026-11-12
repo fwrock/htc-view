@@ -49,12 +49,67 @@ function Editor({
 
   const shown = value ?? ""
   const placeholder = unquote(def.default)
+  const options = def.options ?? []
+  const label = translateText(def.path)
+
+  const parseList = (raw: string): string[] => {
+    try {
+      const parsed: unknown = JSON.parse(raw)
+      if (Array.isArray(parsed)) return parsed.map(String)
+    } catch {
+      /* HOCON literal such as ["a", "b"] with loose quoting */
+    }
+    return raw.replace(/^\[|\]$/g, "").split(",").map((x) => x.trim().replace(/^"|"$/g, "")).filter(Boolean)
+  }
+
   if (def.type === "bool") {
+    const checked = (value ?? placeholder) === "true"
     return (
-      <select className={input} value={shown} onChange={(e) => onChange(e.target.value || undefined)} aria-label={translateText(def.path)}>
+      <label className="flex h-8 items-center gap-2 text-xs">
+        <input type="checkbox" className="size-4 accent-primary" checked={checked} aria-label={label}
+          onChange={(e) => onChange(String(e.target.checked))} />
+        <span>{checked ? translateText("ativado") : translateText("desativado")}</span>
+        {value === undefined && <span className="text-[10px] text-muted-foreground">{translateText("(padrão)")}</span>}
+      </label>
+    )
+  }
+  if (def.type === "list" && options.length > 0) {
+    const selected = parseList(value ?? def.default)
+    const toggle = (opt: string, on: boolean) => {
+      const next = options.filter((o) => (o === opt ? on : selected.includes(o)))
+      onChange(JSON.stringify(next))
+    }
+    return (
+      <fieldset className="flex flex-wrap gap-x-3 gap-y-1" aria-label={label}>
+        {options.map((opt) => (
+          <label key={opt} className="flex items-center gap-1.5 text-xs">
+            <input type="checkbox" className="size-4 accent-primary" checked={selected.includes(opt)}
+              onChange={(e) => toggle(opt, e.target.checked)} />
+            <span className="font-mono">{opt}</span>
+          </label>
+        ))}
+      </fieldset>
+    )
+  }
+  if (options.length > 0 && options.length <= 4) {
+    const current = value ?? placeholder
+    return (
+      <fieldset className="flex flex-wrap gap-x-3 gap-y-1" aria-label={label}>
+        {options.map((opt) => (
+          <label key={opt} className="flex items-center gap-1.5 text-xs">
+            <input type="radio" className="size-4 accent-primary" name={def.path} checked={current === opt}
+              onChange={() => onChange(opt)} />
+            <span className="font-mono">{opt}</span>
+          </label>
+        ))}
+      </fieldset>
+    )
+  }
+  if (options.length > 0) {
+    return (
+      <select className={input} value={shown} onChange={(e) => onChange(e.target.value || undefined)} aria-label={label}>
         <option value="">{translateText("padrão (")}{translateText(placeholder)})</option>
-        <option value="true">{translateText("true")}</option>
-        <option value="false">{translateText("false")}</option>
+        {options.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
       </select>
     )
   }
@@ -99,6 +154,7 @@ export function EnvSettingsPanel({
   const [liveMsg, setLiveMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [profile, setProfile] = useState<EngineStartupProfile | null>(null)
   const [profileMessage, setProfileMessage] = useState("")
+  const [configResource, setConfigResource] = useState("application.conf")
   const [configFiles, setConfigFiles] = useState("")
   const [dispatcherValues, setDispatcherValues] = useState<Record<string, string>>({})
 
@@ -113,6 +169,7 @@ export function EnvSettingsPanel({
   useEffect(() => {
     getEngineStartupProfile().then((saved) => {
       setProfile(saved)
+      setConfigResource(saved.configResource ?? "application.conf")
       setConfigFiles((saved.configFiles ?? []).join("\n"))
     }).catch((e) => setProfileMessage((e as Error).message))
   }, [])
@@ -125,7 +182,7 @@ export function EnvSettingsPanel({
     setProfileMessage("")
     try {
       const saved = await saveEngineStartupProfile(overrides,
-        configFiles.split(/\r?\n/).map((path) => path.trim()).filter(Boolean))
+        configFiles.split(/\r?\n/).map((path) => path.trim()).filter(Boolean), configResource)
       setProfile(saved)
       setProfileMessage("Perfil salvo. Reinicie o engine para aplicar; a simulação atual continua com a configuração anterior.")
     } catch (e) {
@@ -170,17 +227,17 @@ export function EnvSettingsPanel({
 
   // Regenerated server-side so validation and formats live in one place (htc-locations).
   useEffect(() => {
-    if (changedPaths.length === 0) {
+    if (changedPaths.length === 0 && configResource === "application.conf") {
       setExported({ text: "" })
       return
     }
     const t = setTimeout(() => {
-      exportEngineSettings(format, overrides)
+      exportEngineSettings(format, overrides, configResource)
         .then((r) => setExported({ text: r.text }))
         .catch((e) => setExported({ text: "", error: (e as Error).message }))
     }, 250)
     return () => clearTimeout(t)
-  }, [format, overrides, changedPaths.length])
+  }, [format, overrides, changedPaths.length, configResource])
 
   const liveChanged = changedPaths.filter((p) => liveKeys.has(p))
   async function applyLive() {
@@ -227,16 +284,26 @@ export function EnvSettingsPanel({
         {profile?.configured ? <>
           <p className="break-all font-mono text-[10px] text-muted-foreground">{profile.path}</p>
           <label className="flex flex-col gap-1 text-xs">
+            {translateText("Configuração base do engine")}
+            <select className={cn(input, "font-mono")} value={configResource}
+              onChange={(event) => setConfigResource(event.target.value)}>
+              {(profile.configResources ?? ["application.conf", "beluga.conf", "beluga-multi.conf", "vm.conf", "kubernetes.conf"]).map((resource) =>
+                <option key={resource} value={resource}>{resource}</option>)}
+            </select>
+          </label>
+          <p className="text-[11px] text-muted-foreground">{translateText("Seleciona a configuração incluída no engine, equivalente a -Dconfig.resource. Não precisa de um caminho no servidor.")}</p>
+          <label className="flex flex-col gap-1 text-xs">
             {translateText("Arquivos .conf adicionais")}
             <textarea className={cn(input, "h-24 py-2 font-mono")} value={configFiles}
               onChange={(event) => setConfigFiles(event.target.value)}
               placeholder="/etc/htc/threads.conf" />
           </label>
-          <p className="text-[11px] text-muted-foreground">{translateText("Um caminho absoluto por linha, acessível pela API e pelo engine. Ordem: application.conf → arquivos listados → alterações abaixo. O último valor tem prioridade; includes e substituições HOCON são preservados. Reinicie o engine para aplicar.")}</p>
+          <p className="text-[11px] text-muted-foreground">{translateText("Um caminho absoluto por linha, acessível pela API e pelo engine. Ordem: configuração base selecionada → arquivos listados → alterações abaixo. O último valor tem prioridade; includes e substituições HOCON são preservados. Reinicie o engine para aplicar.")}</p>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" onClick={saveProfile} disabled={busy}><Save className="size-3.5" />{translateText("Salvar para o próximo reinício")}</Button>
             <Button size="sm" variant="outline" onClick={() => {
               setOverrides(profile.overrides)
+              setConfigResource(profile.configResource ?? "application.conf")
               setConfigFiles((profile.configFiles ?? []).join("\n"))
             }}>{translateText("Carregar perfil salvo")}</Button>
           </div>

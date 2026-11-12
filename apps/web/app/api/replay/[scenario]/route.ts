@@ -20,6 +20,8 @@ import {
   type NativeReplayDescriptor,
 } from "@/lib/native-replay"
 
+import { recordedRuns, resolveRecordedReplay } from "@/lib/recorded-replay"
+
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
@@ -171,6 +173,7 @@ export async function POST(
   generations.set(generationKey, gen)
 
   let descriptor: NativeReplayDescriptor | undefined
+  let recorded: { reportId: string; label: string } | undefined
   try {
     if (nativeRun) {
       const prepared = await prepareNativeReplay(scenario, cfg.outDir)
@@ -178,8 +181,12 @@ export async function POST(
       parquetDir = prepared.parquetDir
       descriptor = prepared.descriptor
     }
-    // Legacy scenarios may intentionally generate geometry-only replay.
-    await mkdir(parquetDir, { recursive: true })
+    if (!nativeRun && !live) {
+      const resolved = await resolveRecordedReplay(cfg, scenario, await recordedRuns())
+      parquetDir = resolved.parquetDir
+      recorded = resolved
+    }
+    if (live) await mkdir(parquetDir, { recursive: true })
     await mkdir(outDir, { recursive: true })
     if (nativeRun) {
       // Stop serving the previous generation while ETL rewrites its Arrow files.
@@ -221,6 +228,13 @@ export async function POST(
       if (code !== 0)
         throw new Error(tail || `Replay ETL exited with code ${code}`)
       if (descriptor) await bindNativeReplayManifest(outDir, descriptor)
+      if (recorded) {
+        const file = path.join(outDir, "manifest.json")
+        const manifest = JSON.parse(await readFile(file, "utf8"))
+        manifest.source = { reportSimulationId: recorded.reportId, label: recorded.label }
+        const { writeFile } = await import("node:fs/promises")
+        await writeFile(file, JSON.stringify(manifest))
+      }
       gen.status = "done"
       gen.message = tail
     } catch (e) {

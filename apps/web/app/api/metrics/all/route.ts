@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { coverageWarnings } from "@/lib/metrics-coverage"
 import { parsePrometheusText } from "@/lib/prometheus-parser"
 
 // Same source as /api/metrics, but HTC_METRICS_URL may list several engine nodes:
@@ -41,7 +42,7 @@ export async function GET(_req: NextRequest) {
     list.map(async (t) => {
       try {
         const res = await fetch(t.url, { headers: { Accept: "text/plain" }, signal: AbortSignal.timeout(5000) })
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 600)}`)
         const families = parsePrometheusText(await res.text())
         for (const f of families.values()) {
           if (!meta.has(f.name)) meta.set(f.name, { name: f.name, type: f.type, help: f.help })
@@ -55,6 +56,7 @@ export async function GET(_req: NextRequest) {
       }
     })
   )
+  errors.push(...coverageWarnings(samples.map(s=>({name:s.n,labels:s.l,value:s.v}))))
   if (samples.length === 0) {
     return NextResponse.json(
       { error: `Cannot reach metrics endpoint: ${errors.join("; ")}`, url: list.map((t) => t.url).join(", ") },

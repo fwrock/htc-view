@@ -8,6 +8,27 @@
 const BASE_URL =
   process.env.NEXT_PUBLIC_SIMEDAPE_API_URL ?? "http://localhost:5000"
 
+export type SimedapeBackend = "python" | "scala"
+
+/** URL-scoped choice: other HTC pages continue using the management API directly. */
+export function getSimedapeBackend(): SimedapeBackend {
+  const choice = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("backend")
+  if (choice === "python" || choice === "scala") return choice
+  return process.env.NEXT_PUBLIC_SIMEDAPE_BACKEND === "python" ? "python" : "scala"
+}
+
+export async function getSimedapeBackendDefault(): Promise<SimedapeBackend> {
+  const response = await fetch(`${BASE_URL}/api/backends`)
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  const result = await response.json() as { default: string }
+  return result.default === "python" ? "python" : "scala"
+}
+
+function apiBase(): string {
+  const scala = typeof window !== "undefined" && window.location.pathname === "/simedape" && getSimedapeBackend() === "scala"
+  return BASE_URL + (scala ? "/api/backends/scala" : "")
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -68,14 +89,23 @@ export interface ClickHouseSettings {
   secure: boolean
 }
 
+export interface PcaTrainingSettings {
+  selection_mode?: "components" | "variance"
+  n_components?: number
+  variance_threshold?: number
+}
+
 export interface SimedapeConfig {
+  pca_training?: PcaTrainingSettings
+  warping_paths?: { algorithm: "exact" | "fastdtw"; radius: number; n_jobs: number; batch_size: number }
+  checkpoint_data?: boolean
   scenario_name: string
   scenario_dir: string
   street_info_file: string
   csv_sep: string
   output_dir: string
   input_dir: string
-  intervals: { start_time: number; end_time: number; interval_size: number }
+  intervals: { start_time: number; end_time: number; interval_size: number; sample_period?: number; observation_mode?: "events" | "grouped" }
   clustering: {
     n_clusters: number
     verbose: boolean
@@ -95,6 +125,13 @@ export interface NamedConfig {
 }
 
 export interface SimulationEntry {
+  label?: string
+  scenario_name?: string
+  scenario_id?: string
+  scenario_key?: string
+  run_kind?: string
+  street_info_file?: string
+  recommended_config?: Partial<SimedapeConfig>
   id: string
   link_count: number | null
   events: number | null
@@ -105,12 +142,61 @@ export interface SimulationsResponse {
   simulations: SimulationEntry[]
 }
 
+/** Scala resource measurements cover the JVM process, including concurrent jobs. */
+export interface ResourceUsage {
+  latest: Record<string, number | null>
+  peaks: Record<string, number | null>
+  cpu_seconds: number | null
+  cpu_cores_mean: number | null
+  cpu_cores_peak: number | null
+  gc_seconds: number | null
+  gc_collections: number | null
+  disk_read_bytes: number | null
+  disk_write_bytes: number | null
+}
+export interface PhaseMetrics {
+  name: string
+  status: string
+  invocations: number
+  elapsed_seconds: number
+  resources: ResourceUsage
+  details: Record<string, unknown>
+  work: { completed: number | null; total: number | null; unit: string; percent: number | null; rate_per_second: number | null; eta_seconds: number | null }
+}
+export interface StageMetrics {
+  index: number
+  name: string
+  status: string
+  started_at: number
+  finished_at: number | null
+  elapsed_seconds: number
+  scope: "jvm_process"
+  sampled_at: number
+  current_phase: string | null
+  details: Record<string, unknown>
+  resources: ResourceUsage
+  phases: PhaseMetrics[]
+  storage?: { path?: string; filesystem?: string; total_bytes?: number; usable_bytes?: number; minimum_free_bytes?: number; below_minimum?: boolean }
+  collection_errors: number
+  last_collection_error: string | null
+  samples?: { at: number; elapsed_seconds: number; phase: string | null; resources: Record<string, number | null> }[]
+}
+export interface RunMetrics {
+  schema_version: number
+  scope: "jvm_process"
+  sample_interval_seconds: number
+  max_samples_per_stage: number
+  collection_errors: number
+  stages: StageMetrics[]
+}
+
 export interface StageProgress {
   name: string
   status: StageStatus
   started_at: number | null
   elapsed: number | null
   error?: string | null
+  metrics?: StageMetrics
 }
 
 export interface RunProgress {
@@ -152,9 +238,13 @@ export interface RunSummary {
     config?: string | null
     stages?: string[]
     stage_params?: Record<string, Record<string, unknown>>
+    training?: boolean
+    resume_of?: string | null
+    recovery?: TrainingResumePlan | null
   }
   progress: RunProgress
   logs?: string
+  persistence_error?: string
 }
 
 export interface RunStartBody {
@@ -164,6 +254,37 @@ export interface RunStartBody {
   config?: string | Partial<SimedapeConfig> | Record<string, unknown>
   stage_params?: Record<string, Record<string, unknown>>
 }
+
+export interface TrainingResumeOptions {
+  from_stage?: "auto" | "data_load" | "process_dataset" | "clustering" | "warping_paths" | "pca_train" | "model_export"
+  methods?: ("dtw" | "pca")[]
+  warping_paths?: { algorithm: "exact" | "fastdtw"; radius: number; n_jobs: number; batch_size: number }
+  pca_components?: number
+  pca_training?: PcaTrainingSettings
+  clustering?: { n_clusters: number; max_iter: number; random_state: number; clustering_size: number }
+  model_precision?: "float64" | "float32"
+  checkpoint_data?: boolean
+}
+export interface TrainingResumePlan {
+  source_run_id: string
+  source_dir: string
+  from_stage: string
+  methods: ("dtw" | "pca")[]
+  reused_steps: string[]
+  restored_steps: string[]
+  computed_steps: string[]
+  stages: string[]
+  warnings: string[]
+  model_summary: Partial<ModelInfo["summary"]>
+  config: SimedapeConfig
+  stage_params: Record<string, Record<string, unknown>>
+  checkpoint_data: boolean
+  saved_dtw_directory?: string | null
+}
+export const planTrainingResume = (runId: string, options: TrainingResumeOptions = {}) =>
+  apiFetch<TrainingResumePlan>(`/api/runs/${encodeURIComponent(runId)}/resume-plan`, { method: "POST", body: JSON.stringify(options) })
+export const resumeTraining = (runId: string, options: TrainingResumeOptions = {}) =>
+  apiFetch<{ run_id: string; output_dir: string; plan: TrainingResumePlan }>(`/api/runs/${encodeURIComponent(runId)}/resume`, { method: "POST", body: JSON.stringify(options) })
 
 export interface Artifact {
   name: string
@@ -228,7 +349,7 @@ export interface ComparisonDetail {
 // ---------------------------------------------------------------------------
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const res = await fetch(`${apiBase()}${path}`, {
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
     ...init,
   })
@@ -252,6 +373,18 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const getSimedapeHealth = () => apiFetch<SimedapeHealth>("/api/health")
 
+export interface SelectionScheduling {
+  job_parallelism: number
+  selection_parallelism: number
+  selection_max_parallelism: number
+  exclusive_selection_lane: boolean
+}
+export const getSelectionScheduling = () => apiFetch<SelectionScheduling>("/api/jobs/scheduling")
+export const setSelectionScheduling = (selection_parallelism: number) => apiFetch<SelectionScheduling>("/api/jobs/scheduling", {
+  method: "PUT", body: JSON.stringify({ selection_parallelism }),
+})
+
+
 export const getStages = () => apiFetch<StageInfo[]>("/api/stages")
 
 export const getConfigs = () => apiFetch<NamedConfig[]>("/api/configs")
@@ -270,8 +403,14 @@ export const getSimulations = (config?: string) =>
 
 export const listRuns = () => apiFetch<RunSummary[]>("/api/runs")
 
-export const getRun = (runId: string) =>
-  apiFetch<RunSummary>(`/api/runs/${encodeURIComponent(runId)}`)
+export const getRun = async (runId: string): Promise<RunSummary> => {
+  const run = await apiFetch<Omit<RunSummary, "logs"> & { logs?: string | string[] }>(`/api/runs/${encodeURIComponent(runId)}`)
+  // Older Scala services return individual log entries; Python returns text.
+  return { ...run, logs: Array.isArray(run.logs) ? run.logs.join("\n") : run.logs }
+}
+
+export const getRunMetrics = (runId: string) => apiFetch<RunMetrics>(`/api/runs/${encodeURIComponent(runId)}/metrics`)
+export const runMetricsDownloadUrl = (runId: string) => `${apiBase()}/api/runs/${encodeURIComponent(runId)}/metrics?download=1`
 
 export const getRunProgress = (runId: string) =>
   apiFetch<RunProgressResponse>(
@@ -313,8 +452,8 @@ export interface ModelInfo {
     series_length: number
     simulation_points: number
     methods: ("dtw" | "pca")[]
-    dtw: { clusters: number; paths: number; mean_path_length: number } | null
-    pca: { clusters: number; n_components: number; explained_variance_pct_mean: number | null } | null
+    dtw: { clusters: number; paths: number; mean_path_length: number; settings?: { algorithm: "exact" | "fastdtw"; radius?: number } } | null
+    pca: { clusters: number; n_components: number; explained_variance_pct_mean: number | null; selection?: PcaTrainingSettings | null; per_cluster?: { cluster: number; n_components: number; explained_variance_pct: number | null; target_met: boolean | null }[] } | null
   }
   total_raw_bytes: number
   total_stored_bytes: number
@@ -327,10 +466,10 @@ export const getRunModel = (runId: string) =>
 export const reportUrl = (runId: string, kind: "pdf" | "latex" | "zip", params: Record<string, string | number> = {}) => {
   const path = { pdf: "report.pdf", latex: "latex", zip: "export.zip" }[kind]
   const query = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString()
-  return `${BASE_URL}/api/runs/${encodeURIComponent(runId)}/${path}${query ? `?${query}` : ""}`
+  return `${apiBase()}/api/runs/${encodeURIComponent(runId)}/${path}${query ? `?${query}` : ""}`
 }
 export const modelDownloadUrl = (runId: string) =>
-  `${BASE_URL}/api/runs/${encodeURIComponent(runId)}/model/download`
+  `${apiBase()}/api/runs/${encodeURIComponent(runId)}/model/download`
 
 // --- Clustering report (stored inside the model) ---
 export interface ReportStats { mean: number; median: number; p90: number; max: number }
@@ -668,6 +807,8 @@ export interface EngineSettingDef {
   context: string
   group: string
   scope: EngineSettingScope
+  /** Closed value set (radio/select); for type "list" it is a multi-choice (checkboxes). */
+  options?: string[]
 }
 export type ExportFormat = "env" | "compose" | "k8s" | "hocon" | "jvm"
 export const getEngineSettings = () =>
@@ -682,20 +823,23 @@ export interface EngineStartupProfile {
   path: string | null
   overrides: Record<string, string>
   configFiles: string[]
+  configResource: string
+  configResources: string[]
   restartRequired: boolean
 }
 export const getEngineStartupProfile = () => apiFetch<EngineStartupProfile>("/api/engine-settings/profile")
-export const saveEngineStartupProfile = (overrides: Record<string, string>, configFiles?: string[]) =>
+export const saveEngineStartupProfile = (overrides: Record<string, string>, configFiles?: string[], configResource?: string) =>
   apiFetch<EngineStartupProfile>("/api/engine-settings/profile", {
-    method: "PUT", body: JSON.stringify({ overrides, configFiles }),
+    method: "PUT", body: JSON.stringify({ overrides, configFiles, configResource }),
   })
 export const exportEngineSettings = (
   format: ExportFormat,
-  overrides: Record<string, string>
+  overrides: Record<string, string>,
+  configResource = "application.conf"
 ) =>
   apiFetch<{ format: ExportFormat; text: string }>(
     "/api/engine-settings/export",
-    { method: "POST", body: JSON.stringify({ format, overrides }) }
+    { method: "POST", body: JSON.stringify({ format, overrides, configResource }) }
   )
 export const browseFolders = (path?: string) =>
   apiFetch<BrowseResult>(
@@ -720,9 +864,16 @@ export const testLocation = (id: string) =>
   )
 export interface StoredSimulation {
   simulation_id: string
-  links: number
-  events: number
+  links?: number
+  events?: number
+  size_bytes?: number
+  paths?: string[]
 }
+export const deleteLocationSimulation = (id: string, simulationId: string) =>
+  apiFetch<{ deleted: string; note?: string }>(`/api/locations/${encodeURIComponent(id)}/simulations`, {
+    method: "DELETE",
+    body: JSON.stringify({ simulation_id: simulationId, confirm: true }),
+  })
 export const getLocationSimulations = (id: string) =>
   apiFetch<{ location: string; simulations: StoredSimulation[] }>(
     `/api/locations/${encodeURIComponent(id)}/simulations`
@@ -776,4 +927,4 @@ export const getNativeSeries = (
     `/api/runs/${encodeURIComponent(runId)}/native/series?series=${series}&variable=${encodeURIComponent(variable)}`
   )
 export const nativeArtifactUrl = (runId: string, filename: string) =>
-  `${BASE_URL}/api/runs/${encodeURIComponent(runId)}/native/artifacts/${encodeURIComponent(filename)}`
+  `${apiBase()}/api/runs/${encodeURIComponent(runId)}/native/artifacts/${encodeURIComponent(filename)}`

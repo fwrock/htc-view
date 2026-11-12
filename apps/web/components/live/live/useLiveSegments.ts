@@ -59,6 +59,7 @@ export function useLiveSegments(
   options: {
     enabled?: boolean
     simulationId?: string
+    windowTicks?: number
     railLinks?: RailLinksTable
     onReady?: (frame: StreamReady) => void
   } = {}
@@ -71,19 +72,19 @@ export function useLiveSegments(
             links,
             nodes,
             ticksPerSecond,
-            undefined,
+            options.windowTicks,
             options.simulationId,
             options.railLinks
           ),
-    [links, nodes, ticksPerSecond, options.enabled, options.simulationId, options.railLinks]
+    [links, nodes, ticksPerSecond, options.enabled, options.simulationId, options.railLinks, options.windowTicks]
   )
   const [snapshot, setSnapshot] = useState<{
     store: LiveSegmentStore | null
     segments: SegmentsTable
     latestTick: number
   }>({ store: null, segments: EMPTY_SEGMENTS, latestTick: 0 })
-  const transit = useMemo(() => store ? new LiveTransitStore(options.simulationId) : undefined,
-    [store, options.simulationId])
+  const transit = useMemo(() => store ? new LiveTransitStore(options.simulationId, options.windowTicks) : undefined,
+    [store, options.simulationId, options.windowTicks])
   const [connectionState, setConnectionState] =
     useState<LiveConnectionState>("connecting")
 

@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { observeProcessIdentities } from "./metrics-coverage"
 
 /** One scraped sample. `name` is the full sample name (histograms: *_bucket, *_sum, *_count). */
 export interface Sample {
@@ -23,6 +24,7 @@ export interface MetricsStore {
   url: string
   meta: Map<string, FamilyMeta>
   latest: Sample[]
+  warnings?: string[]
   /** series key -> time series, every poll appends one point to every series seen. */
   history: Map<string, { name: string; labels: Record<string, string>; points: Point[] }>
 }
@@ -34,7 +36,7 @@ export function useMetricsStore(intervalMs: number, paused: boolean) {
   const [store, setStore] = useState<MetricsStore | null>(null)
   const [error, setError] = useState<{ message: string; url?: string } | null>(null)
   const history = useRef<MetricsStore["history"]>(new Map())
-  const processIdentity = useRef("")
+  const processIdentity = useRef(new Map<string,number>())
 
   const poll = useCallback(async () => {
     try {
@@ -50,10 +52,9 @@ export function useMetricsStore(intervalMs: number, paused: boolean) {
         labels: s.l,
         value: s.v,
       }))
-      const identity = latest.filter((s) => s.name === "process_start_time_seconds")
-        .map((s) => `${s.labels.node ?? ""}:${s.value}`).sort().join("|")
-      if (identity && processIdentity.current && identity !== processIdentity.current) history.current = new Map()
-      if (identity) processIdentity.current = identity
+      const observed = observeProcessIdentities(processIdentity.current, latest)
+      if (observed.restarted) history.current = new Map()
+      processIdentity.current = observed.identities
       for (const s of latest) {
         const key = keyOf(s.name, s.labels)
         let series = history.current.get(key)
@@ -70,6 +71,7 @@ export function useMetricsStore(intervalMs: number, paused: boolean) {
         url: body.url,
         meta: new Map((body.meta as FamilyMeta[]).map((m) => [m.name, m])),
         latest,
+        warnings: Array.isArray(body.errors) ? body.errors : [],
         history: history.current,
       })
       setError(null)

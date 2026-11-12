@@ -69,6 +69,7 @@ export interface HealthResponse {
 }
 
 export interface StatusResponse {
+  simulationId?: string | null
   status: SimulationStatus
   currentTick: number
   progressRatio: number
@@ -101,6 +102,10 @@ export interface Setting {
   defaultValue: string
   currentValue: string
   source: SettingSource
+  type?: "string" | "number" | "boolean" | "list" | "object" | "null"
+  options?: string[] | null
+  overridden?: boolean
+  restartRequired?: boolean
 }
 
 export interface SettingsResponse {
@@ -234,7 +239,7 @@ export function deleteSimulationConfig(): Promise<{
 
 export function startSimulation(
   body?: StartBody
-): Promise<{ status: string; message: string }> {
+): Promise<{ status: string; message: string; simulationId?: string }> {
   return apiFetch("/simulation/start", {
     method: "POST",
     body: body ? JSON.stringify(body) : undefined,

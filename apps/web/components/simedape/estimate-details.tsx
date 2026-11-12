@@ -24,7 +24,7 @@ const STATS: { key: string; label: string; unit: string; help: string }[] = [
 ]
 
 /** Robust error measures per method for one metric (WAPE, sMAPE, median |error|, bias, RMSE, MAE, correlations). */
-export function RobustPanel({ comparison, methods }: { comparison: ComparisonMatrix; methods: string[] }) {
+export function RobustPanel({ comparison, methods, exportMethods }: { comparison: ComparisonMatrix; methods: string[]; exportMethods?: string[] }) {
   const { t: translateText } = useI18n()
 
   const [metric, setMetric] = useState(comparison.metrics[0]?.key ?? "")
@@ -33,7 +33,7 @@ export function RobustPanel({ comparison, methods }: { comparison: ComparisonMat
   const label = comparison.metrics.find((k) => k.key === metric)?.label ?? metric
   return (
     <Panel title={translateText("Medidas robustas de erro · {0}", { 0: label })} hint={translateText("Complementam o MAPE, que explode quando o valor real é pequeno. Passe o mouse no cabeçalho para ver o que cada uma mede.")}
-      data={{ kind: "table", columns: ["método", ...STATS.map((s) => `${s.label}${s.unit ? ` (${s.unit})` : ""}`)], rows: methods.map((m) => [m, ...STATS.map((s) => robust[s.key]?.[m] ?? null)]) }}>
+      data={{ kind: "table", columns: ["método", ...STATS.map((s) => `${s.label}${s.unit ? ` (${s.unit})` : ""}`)], rows: (exportMethods ?? methods).map((m) => [m, ...STATS.map((s) => robust[s.key]?.[m] ?? null)]) }}>
       <div className="mb-2 flex items-center gap-2 text-xs">
         <label className="flex items-center gap-1.5">{translateText("Métrica")}<select className={sel} value={metric} onChange={(e) => setMetric(e.target.value)}>{comparison.metrics.map((k) => <option key={k.key} value={k.key}>{translateText(k.label)}</option>)}</select>
         </label>
@@ -130,7 +130,7 @@ export function SpecificPanel({ runId, comparison, defaultMethod }: { runId: str
             <Empty>{translateText("Este resultado é antigo (sem rótulos das séries): refaça a estimativa para ver o detalhe por série.")}</Empty>
           ) : (
             <div className="grid gap-3 lg:grid-cols-2">
-              <Panel title={translateText("Estimado × real · {0}", { 0: label })} hint={translateText("Cada ponto é uma série (via e intervalo). Na diagonal, a estimativa acertou.")} data={{ kind: "table", columns: ["real", "estimado"], rows: sp.scatter[metric] ?? [] }}>
+              <Panel title={translateText("Estimado × real · {0}", { 0: label })} hint={translateText("Cada ponto é uma série (via e intervalo). Na diagonal, a estimativa acertou.")} data={{ kind: "table", plot: "scatter", columns: ["real", "estimado"], rows: sp.scatter[metric] ?? [] }}>
                 <Scatter points={sp.scatter[metric] ?? []} />
               </Panel>
               <Panel title={translateText("Piores séries · {0}", { 0: label })} hint={translateText("Maiores erros percentuais absolutos.")}
@@ -168,12 +168,13 @@ export function SpecificPanel({ runId, comparison, defaultMethod }: { runId: str
 
 /** Error by method and metric. A few methods x few metrics stay as grouped bars (readable); beyond that a grouped bar chart turns into
  *  noise, so it becomes a heat table (each metric coloured against its own range) plus bars for ONE chosen metric, best first. */
-export function ErrorChart({ title, hint, unit, metrics, methods, value, detailsHint, signed }: {
+export function ErrorChart({ title, hint, unit, metrics, methods, exportMethods, value, detailsHint, signed }: {
   title: string
   hint?: string
   unit: string
   metrics: { key: string; label: string }[]
   methods: string[]
+  exportMethods?: string[]
   value: (metric: string, method: string) => number | null | undefined
   detailsHint?: string
   /** The values carry a sign (over/under-estimation): colour and rank by magnitude, show the sign. */
@@ -184,7 +185,7 @@ export function ErrorChart({ title, hint, unit, metrics, methods, value, details
   const [metric, setMetric] = useState(metrics[0]?.key ?? "")
   const id = useId()
   const grouped = metrics.length * methods.length <= 24 && methods.length <= 8
-  const exportData = { kind: "table" as const, columns: ["método", ...metrics.map((k) => `${k.label} (${unit})`)], rows: methods.map((m) => [m, ...metrics.map((k) => value(k.key, m) ?? null)]) }
+  const exportData = { kind: "table" as const, plot: "grouped-bars" as const, columns: ["método", ...metrics.map((k) => `${k.label} (${unit})`)], rows: (exportMethods ?? methods).map((m) => [m, ...metrics.map((k) => value(k.key, m) ?? null)]) }
   if (grouped) {
     return (
       <Panel title={translateText(title)} hint={translateText(hint)} data={exportData}>

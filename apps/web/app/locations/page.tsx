@@ -15,6 +15,7 @@ import {
   type SimEngine,
   getLocationScenarios,
   getLocationSimulations,
+  deleteLocationSimulation,
   getLocationSuggestions,
   type StoredSimulation,
   type LocationSuggestion,
@@ -180,16 +181,32 @@ export default function LocationsPage() {
     try {
       const r = await testLocation(id)
       setStatus((s) => ({ ...s, [id]: { ok: r.ok, text: r.ok ? (r.status ?? "ok") : (r.error ?? "falhou") } }))
-      if (r.ok && loc.kind === "clickhouse") {
+      if (r.ok && (loc.kind === "clickhouse" || ((loc.kind === "local" || loc.kind === "docker") && loc.role !== "input" && loc.role != null))) {
         const list = await getLocationSimulations(id)
         setSims((s) => ({ ...s, [id]: list.simulations }))
-      } else if (r.ok && loc.role !== "output") {
+      }
+      if (r.ok && loc.kind !== "clickhouse" && loc.role !== "output") {
         const list = await getLocationScenarios(id)
         setScenarios((s) => ({ ...s, [id]: list.scenarios }))
         setStatus((s) => ({ ...s, [id]: { ok: true, text: translateText("Pasta legível · {0} cenário(s)", { 0: list.scenarios.length }) } }))
       }
     } catch (e) {
       setStatus((s) => ({ ...s, [id]: { ok: false, text: (e as Error).message } }))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function deleteResults(loc: SimLocation, simulationId: string) {
+    if (!window.confirm(translateText("Excluir permanentemente os resultados de {0} em {1}? Pare a simulação antes de excluir. Esta ação não pode ser desfeita.", { 0: simulationId, 1: target(loc) }))) return
+    setBusy(loc.id)
+    setError(null)
+    try {
+      const result = await deleteLocationSimulation(loc.id, simulationId)
+      setSims((s) => ({ ...s, [loc.id]: (s[loc.id] ?? []).filter((sm) => sm.simulation_id !== simulationId) }))
+      setStatus((s) => ({ ...s, [loc.id]: { ok: true, text: result.note ? translateText("Resultados excluídos. O ClickHouse libera o espaço em segundo plano.") : translateText("Resultados excluídos.") } }))
+    } catch (e) {
+      setError((e as Error).message)
     } finally {
       setBusy(null)
     }
@@ -272,7 +289,7 @@ export default function LocationsPage() {
                       </span>
                     )}
                     <Button size="sm" variant="outline" disabled={busy === l.id} onClick={() => check(l)}>
-                      {busy === l.id ? translateText("Testando…") : l.kind === "clickhouse" ? translateText("Testar e listar simulações") : l.role === "output" ? translateText("Testar") : translateText("Testar e listar")}
+                      {busy === l.id ? translateText("Testando…") : (l.kind === "clickhouse" || l.role === "output" || l.role === "both") ? translateText("Testar e listar simulações") : translateText("Testar e listar")}
                     </Button>
                     {l.id !== "default" && (
                       <Button size="sm" variant="ghost" onClick={() => remove(l.id)}>{translateText("Remover")}</Button>
@@ -294,8 +311,11 @@ export default function LocationsPage() {
                     <ul className="ml-1 grid gap-1 text-[11px] text-muted-foreground sm:grid-cols-2">
                       {stored.length === 0 && <li>{translateText("Nenhuma simulação gravada ainda.")}</li>}
                       {stored.map((sm) => (
-                        <li key={sm.simulation_id}>
-                          <span className="font-medium text-foreground">{translateText(sm.simulation_id)}</span> · {translateText(sm.links)}{translateText(" links · ")}{translateText(sm.events)}{translateText(" eventos")}</li>
+                        <li key={sm.simulation_id} className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium text-foreground">{sm.simulation_id}</span>
+                          <span>{sm.size_bytes != null ? `${(sm.size_bytes / 1024 / 1024).toFixed(1)} MiB` : `${sm.links ?? 0} links · ${sm.events ?? 0} ${translateText("eventos")}`}</span>
+                          <Button size="sm" variant="ghost" className="text-red-600" disabled={busy != null} onClick={() => deleteResults(l, sm.simulation_id)}>{translateText("Excluir resultados")}</Button>
+                        </li>
                       ))}
                     </ul>
                   )}

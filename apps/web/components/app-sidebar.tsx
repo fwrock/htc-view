@@ -3,6 +3,7 @@
 import { useI18n } from "@/components/i18n-provider"
 
 import { LanguageSelector } from "@/components/i18n-provider"
+import { ThemeSelector } from "@/components/theme-provider"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
@@ -135,6 +136,7 @@ export function AppSidebar() {
 
       {/* Footer */}
       <div className="border-t border-border px-4 py-3">
+        <ThemeSelector />
         <LanguageSelector />
         <div className="flex items-center gap-1.5">
           <BarChart3 className="size-3 text-muted-foreground" />

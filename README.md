@@ -234,3 +234,24 @@ import { Button } from "@workspace/ui/components/button";
 # htc-view
 # htc-view
 # htc-view
+
+## Report downloads
+
+Each metrics and SimEDaPE panel offers **PDF (vector)** and **Report files (ZIP)**.
+The ZIP contains a separate matplotlib PDF per panel and matching complete `.csv`
+and `.tex` tables, plus the source panel data and report metadata. Table exports use
+all rows supplied to the panel, even if the screen scrolls or shows fewer rows, and
+retain numeric precision. LaTeX uses `booktabs` and `longtable`; wide tables may
+need a landscape page. Metrics reports also offer a ZIP across all standard sections.
+SimEDaPE's report ZIP covers the currently loaded panels and selections.
+Exports respect the selected metrics window and the history collected by the UI.
+
+The Next.js server requires Python 3 and matplotlib:
+
+```bash
+python3 -m pip install -r apps/web/scripts/report-requirements.txt
+```
+
+Set `HTC_REPORT_PYTHON` to a Python executable if using a virtual environment.
+The platform UI Docker image includes these dependencies. The renderer reads JSON
+from stdin and writes PDF/ZIP bytes to stdout; it does not create report files on disk.

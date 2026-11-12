@@ -126,6 +126,10 @@ function Monitor({ id, onGone }: { id: string; onGone: () => void }) {
       {error && <p className="text-xs text-destructive" role="alert">{translateText(error)}</p>}
       {(detail.state?.warnings ?? []).map((w, i) => <p key={i} className="text-xs text-amber-700 dark:text-amber-400">{translateText("aviso: ")}{translateText(w)}</p>)}
 
+      {Array.from(new Set((detail.descriptor?.steps ?? []).filter((step) => step.type === "run_full").map((step) => String(step.params?.scenario ?? "").split(":").slice(1).join(":")))).filter(Boolean).map((scenario) => (
+        <a key={scenario} target="_blank" rel="noreferrer" className="text-sm text-primary underline" href={`/simulator/live?scenario=${encodeURIComponent(scenario)}&background=osm`}>Abrir visualização no mapa (OSM) · {scenario}</a>
+      ))}
+
       <section aria-label={translateText("Instâncias")}>
         <div className="max-h-80 overflow-auto rounded-sm border border-border">
           <table className="w-full text-xs">

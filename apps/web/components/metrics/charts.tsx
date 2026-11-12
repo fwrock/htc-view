@@ -2,9 +2,9 @@
 
 import { useI18n } from "@/components/i18n-provider"
 
-import { createContext, useContext, useEffect, useId, useMemo, useRef, useState } from "react"
+import { createContext, useContext, useEffect, useLayoutEffect, useId, useMemo, useRef, useState } from "react"
 import { cn } from "@workspace/ui/lib/utils"
-import { exportPanelData, exportPanelImage, exportPanelLatex, exportPanelSvg, panelLatex, type ExportData, type ExportMeta } from "@/lib/metrics-export"
+import { registerPanel, reportPanel, exportVectorReport, exportPanelData, exportPanelImage, exportPanelLatex, exportPanelSvg, type ExportData, type ExportMeta } from "@/lib/metrics-export"
 import type { Line } from "@/lib/metrics-store"
 
 // Distinguishable in light and dark themes.
@@ -34,6 +34,10 @@ export function Panel({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  useLayoutEffect(() => {
+    if (ref.current && data) return registerPanel(ref.current, data)
+  }, [data])
+
   useEffect(() => {
     if (!open) return
     const close = (e: MouseEvent | KeyboardEvent) => {
@@ -62,13 +66,15 @@ export function Panel({
   }
   const hasSvg = data?.kind === "series"
   const items: { label: string; action: (node: HTMLElement, m: ExportMeta) => void | Promise<void | boolean>; show: boolean }[] = [
+    { label: "PDF (vector)", show: !!data, action: (_n, m) => exportVectorReport([reportPanel(title, data!)], m, "pdf") },
+    { label: "Report files (ZIP)", show: !!data, action: (_n, m) => exportVectorReport([reportPanel(title, data!)], m, "zip") },
     { label: "Imagem PNG", show: true, action: (n, m) => exportPanelImage(n, title, m, "png") },
     { label: "Imagem JPEG", show: true, action: (n, m) => exportPanelImage(n, title, m, "jpeg") },
     { label: "Vetor SVG", show: hasSvg, action: (n, m) => { if (!exportPanelSvg(n, title, m)) throw new Error("Este painel não tem gráfico vetorial.") } },
     { label: data?.kind === "series" ? "CSV (uma coluna por série)" : "CSV", show: !!data, action: (_n, m) => exportPanelData(title, data!, m, "csv") },
     { label: "CSV (formato longo)", show: data?.kind === "series", action: (_n, m) => exportPanelData(title, data!, m, "csv-long") },
     { label: "JSON", show: !!data, action: (_n, m) => exportPanelData(title, data!, m, "json") },
-    { label: "LaTeX (tabela)", show: !!data && panelLatex(title, data) !== null, action: (_n, m) => exportPanelLatex(title, data!, m) },
+    { label: "LaTeX (tabela)", show: !!data, action: (_n, m) => exportPanelLatex(title, data!, m) },
   ]
 
   return (
@@ -137,15 +143,18 @@ export function LineChart({
   height = 150,
   maxSeries = 8,
   fill = false,
+  formatTime,
 }: {
   series: Line[]
   format?: (v: number) => string
   height?: number
   maxSeries?: number
   fill?: boolean
+  formatTime?: (ms: number) => string
 }) {
   const { t: translateText, intlLocale } = useI18n()
 
+  const timeLabel = formatTime ?? ((ms: number) => clock(ms, intlLocale))
   const id = useId()
   const [hover, setHover] = useState<number | null>(null)
   const W = 520
@@ -194,8 +203,8 @@ export function LineChart({
             </text>
           </g>
         ))}
-        <text x={pad.l} y={H - 4} fontSize={9} fill="currentColor" opacity={0.6}>{clock(t0, intlLocale)}</text>
-        <text x={W - pad.r} y={H - 4} textAnchor="end" fontSize={9} fill="currentColor" opacity={0.6}>{clock(t1, intlLocale)}</text>
+        <text x={pad.l} y={H - 4} fontSize={9} fill="currentColor" opacity={0.6}>{timeLabel(t0)}</text>
+        <text x={W - pad.r} y={H - 4} textAnchor="end" fontSize={9} fill="currentColor" opacity={0.6}>{timeLabel(t1)}</text>
         {shown.map((l, i) => {
           const color = PALETTE[i % PALETTE.length]
           const d = l.points.map((p, j) => `${j ? "L" : "M"}${x(p[0]).toFixed(1)} ${y(p[1]).toFixed(1)}`).join("")
@@ -229,7 +238,7 @@ export function LineChart({
             </li>
           )
         })}
-        {hoverTs !== null && <li className="ml-auto font-mono text-muted-foreground">{clock(hoverTs, intlLocale)}</li>}
+        {hoverTs !== null && <li className="ml-auto font-mono text-muted-foreground">{timeLabel(hoverTs)}</li>}
       </ul>
       {series.length > shown.length && <p className="text-[10px] text-muted-foreground">{translateText("Mostrando as ")}{shown.length}{translateText(" maiores de ")}{series.length}{translateText(" séries.")}</p>}
     </div>

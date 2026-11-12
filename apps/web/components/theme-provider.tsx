@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes"
+import { useI18n } from "@/components/i18n-provider"
 
 function ThemeProvider({
   children,
@@ -11,13 +12,40 @@ function ThemeProvider({
     <NextThemesProvider
       attribute="class"
       defaultTheme="dark"
-      enableSystem={false}
+      enableSystem
       disableTransitionOnChange
       {...props}
     >
       <ThemeHotkey />
       {children}
     </NextThemesProvider>
+  )
+}
+
+const subscribe = () => () => {}
+
+function ThemeSelector() {
+  const { theme, setTheme } = useTheme()
+  const { t } = useI18n()
+  // The saved preference is only available in the browser. Keep the server
+  // and first client render identical until hydration finishes.
+  const mounted = React.useSyncExternalStore(subscribe, () => true, () => false)
+
+  return (
+    <label className="mb-3 flex flex-col gap-1 text-[10px] text-muted-foreground">
+      {t("Tema")}
+      <select
+        aria-label={t("Tema")}
+        value={mounted ? theme : "dark"}
+        disabled={!mounted}
+        onChange={(event) => setTheme(event.target.value)}
+        className="h-8 w-full rounded-sm border border-input bg-background px-2 text-xs text-foreground"
+      >
+        <option value="light">{t("Claro")}</option>
+        <option value="dark">{t("Escuro")}</option>
+        <option value="system">{t("Sistema")}</option>
+      </select>
+    </label>
   )
 }
 
@@ -69,4 +97,4 @@ function ThemeHotkey() {
   return null
 }
 
-export { ThemeProvider }
+export { ThemeProvider, ThemeSelector }

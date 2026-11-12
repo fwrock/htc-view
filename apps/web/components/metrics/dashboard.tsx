@@ -1,10 +1,13 @@
 "use client"
 
+import { BalanceComparison } from "./balance-comparison"
 import { ExecutionTimings } from "./execution-timings"
 import { timeWarpSummary } from "@/lib/time-warp-metrics"
 import { useI18n } from "@/components/i18n-provider"
 
-import { useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { flushSync } from "react-dom"
+import { collectReportSections } from "@/lib/report-collection"
 import { Download, FileText, Loader2, Pause, Play, RotateCcw } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
@@ -26,11 +29,12 @@ import {
   type Line,
   type MetricsStore,
 } from "@/lib/metrics-store"
-import { capturePanels, exportAll, exportReportPdf, type ExportMeta, type ReportSection } from "@/lib/metrics-export"
+import { collectReportPanelData, prepareReportPanels, exportVectorReport, exportAll, type ExportMeta } from "@/lib/metrics-export"
 import { BarList, Distribution, Empty, ExportContext, LineChart, Matrix, Meter, Panel, Stat } from "./charts"
 
-type SectionId = "timings" | "overview" | "actors" | "timewarp" | "trips" | "people" | "routing" | "load" | "managers" | "jvm" | "nodes" | "explorer"
+type SectionId = "compare" | "timings" | "overview" | "actors" | "timewarp" | "trips" | "people" | "routing" | "load" | "managers" | "jvm" | "nodes" | "explorer"
 const SECTIONS: { id: SectionId; label: string }[] = [
+  { id: "compare", label: "Strategy comparison" },
   { id: "overview", label: "Visão geral" },
   { id: "timings", label: "Cronômetros" },
   { id: "actors", label: "Atores e mensagens" },
@@ -349,7 +353,7 @@ function Managers(ctx: Ctx & { manager: string; setManager: (m: string) => void 
   return (
     <>
       <Panel title={translateText("Managers")} hint={translateText("Mensagens tratadas e tempo de tratamento por manager. singleton: roda em um nó do cluster; node: um por nó.")}
-        data={{ kind: "table", columns: ["manager", "papel", "tipo", "instâncias", "mensagens", "mensagens/s", "tempo médio (s)", "p95 (s)", "tempo ocupado total (s)"], rows: rows.map((r) => [r.m, roleOf(r.m).short, r.kind, r.instances, r.msgs, Number(r.rate.toFixed(2)), r.avg, r.p95, Number(r.busy.toFixed(3))]) }}>
+        data={{ kind: "table", columns: ["manager", "papel", "tipo", "instâncias", "mensagens", "mensagens/s", "tempo médio (s)", "p95 (s)", "tempo ocupado total (s)"], rows: rows.map((r) => [r.m, roleOf(r.m).short, r.kind, r.instances, r.msgs, r.rate, r.avg, r.p95, r.busy]) }}>
         <div className="overflow-x-auto">
           <table className="w-full text-[11px]">
             <thead><tr className="text-left text-muted-foreground"><th className="py-1 pr-3">{translateText("Papel")}</th><th className="pr-3">{translateText("Manager")}</th><th className="pr-3">{translateText("Tipo")}</th><th className="pr-3 text-right">{translateText("Inst.")}</th><th className="pr-3 text-right">{translateText("Mensagens")}</th><th className="pr-3 text-right">{translateText("Msg/s")}</th><th className="pr-3 text-right">{translateText("Médio")}</th><th className="pr-3 text-right">{translateText("p95")}</th><th className="text-right">{translateText("Ocupado")}</th></tr></thead>
@@ -428,10 +432,10 @@ function Jvm(ctx: Ctx) {
   const fdsMax = total(store, "process_max_fds")
   return (
     <div className="grid gap-3 lg:grid-cols-2">
-      <Panel title={translateText("Memória heap")}>
+      <Panel title={translateText("Memória heap")} data={{ kind: "table", columns: ["used (bytes)", "max (bytes)"], rows: [[used, max]] }}>
         <Meter value={used !== null && max ? used / max : null} label={translateText("{0} de {1}", { 0: fmtBytes(used), 1: fmtBytes(max) })} />
       </Panel>
-      <Panel title={translateText("Descritores de arquivo")}>
+      <Panel title={translateText("Descritores de arquivo")} data={{ kind: "table", columns: ["open", "max"], rows: [[fdsOpen, fdsMax]] }}>
         <Meter value={fdsOpen !== null && fdsMax ? fdsOpen / fdsMax : null} label={translateText("{0} de {1}", { 0: fmtNum(fdsOpen, 0), 1: fmtNum(fdsMax, 0) })} />
       </Panel>
       <Series title={translateText("Heap")} series={[...heap("jvm_memory_bytes_used", "usado"), ...heap("jvm_memory_bytes_committed", "reservado"), ...heap("jvm_memory_bytes_max", "máximo")]} format={fmtBytes} unit="bytes" />
@@ -550,7 +554,7 @@ function Nodes(ctx: Ctx) {
       {typeRows.length > 0 && (
         <div className="grid gap-3 lg:grid-cols-2">
           <Panel title={translateText("Tipo de mensagem: mesmo nó x outro nó")} hint={translateText("Mensagens acumuladas por tipo (event_type) e localidade.")}
-            data={{ kind: "table", columns: ["tipo de mensagem", "local", "remoto", "desconhecido", "% remoto"], rows: typeRows.map((r) => [r.type, r.local, r.remote, r.unknown, r.local + r.remote ? Number(((100 * r.remote) / (r.local + r.remote)).toFixed(2)) : 0]) }}>
+            data={{ kind: "table", columns: ["tipo de mensagem", "local", "remoto", "desconhecido", "% remoto"], rows: typeRows.map((r) => [r.type, r.local, r.remote, r.unknown, r.local + r.remote ? (100 * r.remote) / (r.local + r.remote) : 0]) }}>
             <table className="w-full text-[11px]">
               <thead><tr className="text-left text-muted-foreground"><th className="py-1 pr-3">{translateText("Tipo")}</th><th className="pr-3 text-right">{translateText("Local")}</th><th className="pr-3 text-right">{translateText("Remoto")}</th><th className="text-right">{translateText("% remoto")}</th></tr></thead>
               <tbody>
@@ -677,39 +681,59 @@ export function MetricsDashboard() {
   const [manager, setManager] = useState("")
   const [busy, setBusy] = useState<string | null>(null)
   const [exportError, setExportError] = useState<string | null>(null)
-  const { store, error, reset } = useMetricsStore(interval, paused)
+  const { store, error, reset } = useMetricsStore(interval, paused || busy !== null)
   const body = useRef<HTMLDivElement>(null)
+  const exportAbort = useRef<AbortController | null>(null)
+  useEffect(() => () => exportAbort.current?.abort(), [])
+  const [exportProgress, setExportProgress] = useState("")
+  const [exportSnapshot, setExportSnapshot] = useState<MetricsStore | null>(null)
+  const activeStore = exportSnapshot ?? store
 
-  const since = store && Number(windowMs) ? store.ts - Number(windowMs) : undefined
+  const since = activeStore && Number(windowMs) ? activeStore.ts - Number(windowMs) : undefined
   const windowLabel = WINDOWS.find((w) => w.id === windowMs)?.label ?? ""
   const meta: ExportMeta = { locale, source: store?.url ?? "", windowLabel: windowMs === "0" ? translateText("todo o histórico coletado") : translateText("últimos {0}", { 0: translateText(windowLabel) }), generatedAt: store?.ts ?? 0, section: SECTIONS.find((s) => s.id === section)?.label }
 
-  async function report(all: boolean) {
-    setBusy(all ? "pdf-all" : "pdf")
+  async function report(all: boolean, format: "pdf" | "zip" = "pdf") {
+    setBusy(format === "zip" ? "zip" : all ? "pdf-all" : "pdf")
     setExportError(null)
     const original = section
+    const controller = new AbortController()
+    exportAbort.current = controller
+    const snapshot = store ? { ...store, history: new Map([...store.history].map(([key, value]) => [key, { ...value, points: value.points.slice() }])) } : null
     try {
+      flushSync(() => setExportSnapshot(snapshot))
       const ids = all ? SECTIONS.filter((x) => x.id !== "explorer").map((x) => x.id) : [section]
-      const collected: ReportSection[] = []
-      for (const id of ids) {
-        if (id !== section) setSection(id)
-        await new Promise((r) => setTimeout(r, 500))        // let the section render before capturing it
-        const panels = body.current ? await capturePanels(body.current) : []
-        if (panels.length) collected.push({ title: translateText(SECTIONS.find((x) => x.id === id)!.label), panels })
-      }
+      const collected = await collectReportSections(ids, async (id) => {
+        // Commit every section unconditionally; comparing to the original tab
+        // skipped that tab and mislabeled the preceding section's panels.
+        flushSync(() => setSection(id))
+        await new Promise(resolve => setTimeout(resolve, 0))
+      }, () => body.current ? collectReportPanelData(body.current) : [], {
+        signal: controller.signal,
+        progress: (id, index, total) => setExportProgress(`${index}/${total} · ${translateText(SECTIONS.find(s => s.id === id)!.label)}`),
+      })
+      flushSync(() => setSection(original))
       if (collected.length === 0) throw new Error("Não há painéis para exportar nesta seção.")
-      await exportReportPdf(collected, meta)
+      const panels = await prepareReportPanels(collected, {
+        signal: controller.signal,
+        progress: (index, total) => setExportProgress(`${translateText("Preparing report tables")} · ${index}/${total}`),
+      })
+      setExportProgress(translateText("Generating report files"))
+      await exportVectorReport(panels, { ...meta, section: all ? ids.map(id => translateText(SECTIONS.find(item => item.id === id)!.label)).join(" / ") : meta.section }, format, controller.signal)
     } catch (e) {
-      setExportError((e as Error).message)
+      if (!controller.signal.aborted) setExportError((e as Error).message)
     } finally {
+      exportAbort.current = null
+      setExportSnapshot(null)
+      setExportProgress("")
       setSection(original)
       setBusy(null)
     }
   }
 
-  const ctx: Ctx | null = store ? { store, since } : null
+  const ctx: Ctx | null = activeStore ? { store: activeStore, since } : null
   // Only the open section is rendered, as a component (its hooks stay stable across renders).
-  const content = ctx ? (
+  const content = section === "compare" ? <BalanceComparison /> : ctx ? (
     section === "timings" ? <ExecutionTimings store={ctx.store} />
     : section === "overview" ? <Overview {...ctx} />
     : section === "actors" ? <Actors {...ctx} />
@@ -743,20 +767,29 @@ export function MetricsDashboard() {
                 <Button size="sm" variant="outline" onClick={() => exportAll(store, "json")}><Download className="size-3.5" />{translateText(" Tudo (JSON)")}</Button>
               </>
             )}
+            <Button size="sm" variant="outline" disabled={!store || busy !== null} onClick={() => void report(true, "zip")}>{busy === "zip" ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}{translateText("Report files (ZIP)")}</Button>
             <Button size="sm" disabled={!store || busy !== null} onClick={() => void report(false)}>{busy === "pdf" ? <Loader2 className="size-3.5 animate-spin" /> : <FileText className="size-3.5" />}{translateText(" PDF da seção")}</Button>
             <Button size="sm" variant="outline" disabled={!store || busy !== null} onClick={() => void report(true)}>{busy === "pdf-all" ? <Loader2 className="size-3.5 animate-spin" /> : <FileText className="size-3.5" />}{translateText(" PDF completo")}</Button>
           </span>
         </div>
+        {busy && <div role="status" aria-live="polite" className="flex items-center gap-3 text-xs">
+          <span>{exportProgress}</span>
+          <Button size="sm" variant="outline" onClick={() => exportAbort.current?.abort()}>{translateText("Cancelar")}</Button>
+        </div>}
         {exportError && <p role="alert" className="text-xs text-destructive">{translateText(exportError)}</p>}
         {store && (
           <p className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
-            <span className={cn("rounded-sm border px-1.5 py-0.5 font-semibold uppercase tracking-widest", error ? "border-yellow-500/40 text-yellow-700 dark:text-yellow-400" : paused ? "border-border" : "border-green-500/30 text-green-600 dark:text-green-400")}>
-              {error ? translateText("desatualizado") : paused ? translateText("pausado") : translateText("ao vivo")}
+            <span className={cn("rounded-sm border px-1.5 py-0.5 font-semibold uppercase tracking-widest", (error || store.warnings?.length) ? "border-yellow-500/40 text-yellow-700 dark:text-yellow-400" : paused ? "border-border" : "border-green-500/30 text-green-600 dark:text-green-400")}>
+              {error ? translateText("desatualizado") : store.warnings?.length ? "partial" : paused ? translateText("pausado") : translateText("ao vivo")}
             </span>
             {translateText(store.url)} · {translateText(store.history.size)}{translateText(" séries · última leitura ")}{translateText(new Date(store.ts).toLocaleTimeString(intlLocale))}
           </p>
         )}
 
+        {!!store?.warnings?.length && <div role="status" className="rounded-sm border border-yellow-500/40 bg-yellow-500/10 p-3 text-xs">
+          <p className="font-semibold">Partial metrics: the cluster observation is incomplete.</p>
+          {store.warnings.map(warning=><p key={warning}>{warning}</p>)}
+        </div>}
         {error && store && (
           <div role="status" className="rounded-sm border border-yellow-500/40 bg-yellow-500/10 p-3 text-xs">
             <p className="font-semibold text-yellow-700 dark:text-yellow-400">{translateText("Dados desatualizados: sem conexão com o engine desde ")}{translateText(new Date(store.ts).toLocaleTimeString(intlLocale))}.</p>
@@ -773,14 +806,14 @@ export function MetricsDashboard() {
 
         <div role="tablist" aria-label={translateText("Seções de métricas")} className="flex flex-wrap gap-1">
           {SECTIONS.map((s) => (
-            <button key={s.id} type="button" role="tab" aria-selected={section === s.id} onClick={() => setSection(s.id)}
+            <button key={s.id} type="button" role="tab" disabled={busy !== null} aria-selected={section === s.id} onClick={() => setSection(s.id)}
               className={cn("rounded-sm border px-2.5 py-1 text-xs", section === s.id ? "border-primary bg-primary/10 font-medium" : "border-border text-muted-foreground hover:text-foreground")}>
               {translateText(s.label)}
             </button>
           ))}
         </div>
 
-        <div ref={body} className={cn("flex flex-col gap-3", error && store && "opacity-50")}>
+        <div ref={body} className={cn("flex flex-col gap-3", error && store && section !== "compare" && "opacity-50")}>
           {!store && !error && <p className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="size-3.5 animate-spin" />{translateText(" Lendo métricas…")}</p>}
           {translateText(content)}
         </div>

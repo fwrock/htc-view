@@ -3,6 +3,7 @@
   "ui": "tui",
   "globalEnv": [
     "HTC_SCENARIOS_DIR",
+    "HTC_REPORT_PYTHON",
     "HTC_REPORT_PARQUET_DIRECTORY",
     "HTC_REPLAY_OUT_DIR",
     "HTC_REPLAY_ETL_DIR",

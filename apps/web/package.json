@@ -13,6 +13,8 @@
     "test:replay": "node --experimental-strip-types --test tests/native-replay.test.mjs tests/road-geometry.test.mjs tests/entity-rendering.test.mjs tests/sidewalks.test.mjs tests/live-transit.test.mjs",
     "test:i18n": "node --experimental-strip-types --test tests/i18n.test.mjs",
     "test:live": "node --experimental-strip-types --test tests/live-scenarios.test.mjs",
+    "test:reports": "node --experimental-strip-types --test tests/report-export.test.mjs && python3 tests/test_report_renderer.py",
+    "test:simedape": "node --experimental-strip-types --test tests/simedape-backends.test.mjs",
     "test:timings": "node --experimental-strip-types --test tests/execution-timings.test.mjs"
   },
   "dependencies": {

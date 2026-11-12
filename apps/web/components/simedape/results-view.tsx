@@ -1,5 +1,6 @@
 "use client"
 
+import { ReportDownloads } from "@/components/metrics/report-downloads"
 import { useI18n } from "@/components/i18n-provider"
 
 import { useEffect, useMemo, useState } from "react"
@@ -110,7 +111,8 @@ export function ResultsBody({
 
   return (
     <ExportContext.Provider value={meta}>
-      <div className="flex flex-col gap-3">
+      <div data-report-root className="flex flex-col gap-3">
+        <ReportDownloads />
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-[11px] text-muted-foreground">{translateText("Cada painel tem o menu Exportar (imagem, CSV, JSON, LaTeX). Os botões ao lado geram, em Python, o PDF vetorial, as tabelas LaTeX e o pacote para artigo.")}</p>
           <span className="ml-auto flex flex-wrap items-center gap-2">
@@ -166,13 +168,13 @@ export function ResultsBody({
           )}
           {methods.length > 0 && (
             <div className="grid gap-3 lg:grid-cols-2">
-              <ErrorChart title={translateText("Erro por métrica e método (MAPE %)")} hint={translateText("Menor é melhor. Comparação com a simulação completa (100%).")} unit="%" metrics={metrics} methods={methods} value={(k, m) => comparison!.mape[k]?.[m]} />
-              <ErrorChart title={translateText("Erro agregado por métrica e método (%)")} hint={translateText("Média geométrica do erro das séries; o sinal indica superestimar (+) ou subestimar (−).")} unit="%" signed metrics={metrics} methods={methods} value={(k, m) => comparison!.aggregate_error_pct[k]?.[m]} />
+              <ErrorChart title={translateText("Erro por métrica e método (MAPE %)")} hint={translateText("Menor é melhor. Comparação com a simulação completa (100%).")} unit="%" metrics={metrics} methods={methods} exportMethods={allMethods} value={(k, m) => comparison!.mape[k]?.[m]} />
+              <ErrorChart title={translateText("Erro agregado por métrica e método (%)")} hint={translateText("Média geométrica do erro das séries; o sinal indica superestimar (+) ou subestimar (−).")} unit="%" signed metrics={metrics} methods={methods} exportMethods={allMethods} value={(k, m) => comparison!.aggregate_error_pct[k]?.[m]} />
               <Panel title={translateText("Cobertura por método (%)")} hint={translateText("Fração das séries reais que o método conseguiu estimar.")}
-                data={{ kind: "bars", items: methods.map((m) => ({ label: m, value: comparison!.coverage_pct[m] ?? 0 })), unit: "%" }}>
+                data={{ kind: "bars", items: allMethods.map((m) => ({ label: m, value: comparison!.coverage_pct[m] ?? 0 })), unit: "%" }}>
                 {methods.length > 8 ? <BarList items={[...methods].sort((a, b) => (comparison!.coverage_pct[b] ?? 0) - (comparison!.coverage_pct[a] ?? 0)).map((m) => ({ label: m, value: comparison!.coverage_pct[m] ?? 0 }))} max={24} format={(v) => `${v.toFixed(0)}%`} /> : <GroupedBars categories={methods} series={[{ label: "cobertura", values: methods.map((m) => comparison!.coverage_pct[m] ?? null) }]} format={(v) => v.toFixed(0)} />}
               </Panel>
-              <Panel title={translateText("Tabela de MAPE (%)")} data={{ kind: "table", columns: ["métrica", ...methods], rows: metrics.map((k) => [k.label, ...methods.map((m) => comparison!.mape[k.key]?.[m] ?? null)]) }}>
+              <Panel title={translateText("Tabela de MAPE (%)")} data={{ kind: "table", columns: ["métrica", ...allMethods], rows: [...metrics.map((k) => [k.label, ...allMethods.map((m) => comparison!.mape[k.key]?.[m] ?? null)]), ["Séries reais", ...allMethods.map((m) => comparison!.n_real[m] ?? null)], ["Séries estimadas", ...allMethods.map((m) => comparison!.n_estimated[m] ?? null)]] }}>
                 <div className="overflow-x-auto">
                   <table className="w-full text-[11px]">
                     <thead><tr className="text-left text-muted-foreground"><th className="py-1 pr-3">{translateText("Métrica")}</th>{methods.map((m) => <th key={m} className="pr-3 text-right">{translateText(m)}</th>)}</tr></thead>
@@ -196,7 +198,7 @@ export function ResultsBody({
             </div>
           )}
 
-          {comparison && methods.length > 0 && <RobustPanel comparison={comparison} methods={methods} />}
+          {comparison && methods.length > 0 && <RobustPanel comparison={comparison} methods={methods} exportMethods={allMethods} />}
           {comparison && allMethods.length > 0 && <SpecificPanel runId={runId} comparison={comparison} defaultMethod={best?.find((b) => !isBaseline(b.m))?.m ?? best?.[0]?.m ?? allMethods[0]!} />}
 
           {estMethods.length > 0 && (

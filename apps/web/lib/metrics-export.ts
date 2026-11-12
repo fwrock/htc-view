@@ -6,10 +6,10 @@ import type { Line, MetricsStore } from "@/lib/metrics-store"
 
 /** What a panel can hand to the export menu. */
 export type ExportData =
-  | { kind: "series"; series: Line[]; unit?: string }
+  | { kind: "series"; series: Line[]; unit?: string; timeAxis?: "elapsed" }
   | { kind: "bars"; items: { label: string; value: number }[]; unit?: string }
   | { kind: "bins"; bins: { label: string; value: number }[]; quantiles?: { q: string; v: number | null }[]; unit?: string }
-  | { kind: "table"; columns: string[]; rows: (string | number | null)[][]; unit?: string }
+  | { kind: "table"; plot?: "scatter" | "row-lines" | "column-lines" | "grouped-bars"; columns: string[]; rows: (string | number | null)[][]; unit?: string }
   | { kind: "matrix"; rows: string[]; cols: string[]; cells: number[][]; rowLabel: string; colLabel: string; unit?: string }
 
 export interface ExportMeta {
@@ -45,6 +45,14 @@ const iso = (ms: number) => new Date(ms).toISOString()
 
 /** Rows for a panel. `wide`: one column per series aligned on timestamps; otherwise long format. */
 export function panelCsv(data: ExportData, wide = true): string {
+  if (data.kind === "series" && data.timeAxis === "elapsed") {
+    if (!wide) return csv([["elapsed_seconds", "series", "value", "unit"],
+      ...data.series.flatMap(line => line.points.map(([ms, value]) => [ms/1000, line.label, value, data.unit ?? ""]))])
+    const times = [...new Set(data.series.flatMap(line => line.points.map(p => p[0])))].sort((a,b) => a-b)
+    const maps = data.series.map(line => new Map(line.points))
+    return csv([["elapsed_seconds", ...data.series.map(line => line.label)],
+      ...times.map(ms => [ms/1000, ...maps.map(map => map.get(ms) ?? null)])])
+  }
   if (data.kind === "series") {
     const unit = data.unit ?? ""
     if (!wide) {
@@ -66,23 +74,29 @@ export function panelCsv(data: ExportData, wide = true): string {
 
 const TEX: Record<string, string> = { "&": "\\&", "%": "\\%", _: "\\_", "#": "\\#", $: "\\$", "{": "\\{", "}": "\\}", "~": "\\textasciitilde{}", "^": "\\textasciicircum{}", "\\": "\\textbackslash{}" }
 const texEscape = (v: string | number | null) => String(v ?? "").replace(/[&%_#${}~^\\]/g, (c) => TEX[c] ?? c)
-const texNum = (v: string | number | null) => (typeof v === "number" ? (Number.isFinite(v) ? (Number.isInteger(v) ? String(v) : v.toFixed(2)) : "--") : v === null ? "--" : texEscape(v))
+const texNum = (v: string | number | null) => (typeof v === "number" ? (Number.isFinite(v) ? String(v) : "--") : v === null ? "--" : texEscape(v))
 
-/** The panel as a booktabs LaTeX table (series panels are not tables and are not offered). */
+/** Complete, full-precision booktabs/longtable data, including time series. */
 export function panelLatex(title: string, data: ExportData): string | null {
+  if (data.kind === "series" && data.timeAxis === "elapsed") return panelLatex(title, {kind:"table",
+    columns:["elapsed_seconds", "series", "value"], rows:data.series.flatMap(line => line.points.map(([ms,v]) => [ms/1000,line.label,v]))})
   let header: string[]
   let rows: (string | number | null)[][]
   if (data.kind === "table") [header, rows] = [data.columns, data.rows]
   else if (data.kind === "matrix") [header, rows] = [[`${data.rowLabel} / ${data.colLabel}`, ...data.cols], data.rows.map((r, i) => [r, ...data.cells[i]!])]
-  else if (data.kind === "bars") [header, rows] = [["rótulo", data.unit ? `valor (${data.unit})` : "valor"], data.items.map((i) => [i.label, i.value])]
-  else if (data.kind === "bins") [header, rows] = [["faixa", "contagem"], data.bins.map((b) => [b.label, b.value])]
+  else if (data.kind === "bars") [header, rows] = [["label", data.unit ? `value (${data.unit})` : "value"], data.items.map((i) => [i.label, i.value])]
+  else if (data.kind === "bins") [header, rows] = [["bin / quantile", "value"], [...data.bins.map((b) => [b.label, b.value] as (string | number | null)[]), ...(data.quantiles ?? []).map((q) => [`quantile ${q.q}`, q.v])]]
+  else if (data.kind === "series") {
+    header = ["timestamp (UTC)", "epoch_ms", "series", data.unit ? `value (${data.unit})` : "value"]
+    rows = data.series.flatMap((line) => line.points.map(([t, v]) => [iso(t), t, line.label, v]))
+  }
   else return null
   const label = "tab:" + slug(title)
   return [
-    "\\begin{table}[t]", "\\centering", "\\small", `\\caption{${texEscape(title)}${data.unit ? ` (${texEscape(data.unit)})` : ""}}`, `\\label{${label}}`,
-    `\\begin{tabular}{l${"r".repeat(header.length - 1)}}`, "\\toprule", header.map(texEscape).join(" & ") + " \\\\", "\\midrule",
+    "% Requires \\usepackage{booktabs,longtable}", "\\begin{longtable}{l" + "r".repeat(header.length - 1) + "}", `\\caption{${texEscape(title)}${data.unit ? ` (${texEscape(data.unit)})` : ""}}`, `\\label{${label}}\\\\`,
+    "\\toprule", header.map(texEscape).join(" & ") + " \\\\", "\\midrule",
     ...rows.map((r) => [texEscape(r[0] ?? ""), ...r.slice(1).map(texNum)].join(" & ") + " \\\\"),
-    "\\bottomrule", "\\end{tabular}", "\\end{table}", "",
+    "\\bottomrule", "\\end{longtable}", "",
   ].join("\n")
 }
 
@@ -93,6 +107,9 @@ export function exportPanelLatex(title: string, data: ExportData, meta: ExportMe
 }
 
 export function panelJson(title: string, data: ExportData, meta: ExportMeta): string {
+  if (data.kind === "series" && data.timeAxis === "elapsed")
+    return JSON.stringify({ panel: title, source: meta.source, timeAxis: "elapsed_seconds", unit: data.unit,
+      series: data.series.map(line => ({ label: line.label, points: line.points.map(([ms,v]) => ({elapsed_seconds: ms/1000, v})) })) }, null, 2)
   const base = { panel: title, section: meta.section, source: meta.source, window: meta.windowLabel, generatedAt: iso(meta.generatedAt), unit: data.unit ?? null }
   if (data.kind === "series")
     return JSON.stringify({ ...base, series: data.series.map((l) => ({ label: l.label, points: l.points.map(([t, v]) => ({ t: iso(t), epoch_ms: t, v })) })) }, null, 2)
@@ -261,4 +278,55 @@ export async function exportReportPdf(sections: ReportSection[], meta: ExportMet
     footer()
   }
   pdf.save(`relatorio-htc-${stamp(meta.generatedAt)}.pdf`)
+}
+
+
+/** Data registry is independent of screen clipping, chart sampling and table pagination. */
+const panelData = new WeakMap<HTMLElement, ExportData>()
+export function registerPanel(node: HTMLElement, data: ExportData) {
+  panelData.set(node, data)
+  return () => { panelData.delete(node) }
+}
+export interface ReportPanelInput { title: string; data: ExportData }
+export interface DataPanel extends ReportPanelInput { csv: string; latex: string }
+export function reportPanel(title: string, data: ExportData): DataPanel {
+  return { title, data, csv: panelCsv(data), latex: panelLatex(title, data) ?? "" }
+}
+export function collectReportPanelData(root: HTMLElement): ReportPanelInput[] {
+  return [...root.querySelectorAll<HTMLElement>("[data-panel]")].flatMap((node) => {
+    const data = panelData.get(node)
+    return data ? [{ title: node.dataset.panelTitle ?? "Panel", data }] : []
+  })
+}
+export function collectReportPanels(root: HTMLElement): DataPanel[] {
+  return collectReportPanelData(root).map(panel => reportPanel(panel.title, panel.data))
+}
+/** Yield between panels so long exports can paint progress and be cancelled. */
+export async function prepareReportPanels(panels: ReportPanelInput[], options: {
+  signal?: AbortSignal; progress?: (index: number, total: number) => void
+} = {}): Promise<DataPanel[]> {
+  const result: DataPanel[] = []
+  for (const [index, panel] of panels.entries()) {
+    options.signal?.throwIfAborted()
+    options.progress?.(index + 1, panels.length)
+    await new Promise(resolve => setTimeout(resolve, 0))
+    options.signal?.throwIfAborted()
+    result.push(reportPanel(panel.title, panel.data))
+  }
+  return result
+}
+export async function exportVectorReport(panels: DataPanel[], meta: ExportMeta, format: "pdf" | "zip", signal?: AbortSignal) {
+  signal?.throwIfAborted()
+  if (!panels.length) throw new Error("No panel data to export.")
+  const response = await fetch("/api/reports/export", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ panels, meta, format }), signal,
+  })
+  if (!response.ok) {
+    const detail = await response.json().catch(() => ({}))
+    throw new Error(detail.error ?? `Report export failed (${response.status})`)
+  }
+  const blob = await response.blob()
+  signal?.throwIfAborted()
+  download(blob, `htc-report-${stamp(meta.generatedAt)}.${format}`)
 }

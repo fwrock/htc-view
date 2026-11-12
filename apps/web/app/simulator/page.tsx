@@ -981,16 +981,11 @@ export default function SimulatorPage() {
             <Button size="sm" variant="ghost" onClick={() => setConfirmReset(false)}>{translateText("Cancelar")}</Button>
           </div>}
 
-          {simStatus === "Running" && (
+          {(activeScenario || scenarioRef) && (
             <Button asChild size="sm" variant="outline">
-              <Link
-                href={
-                  activeScenario
-                    ? `/simulator/live?scenario=${encodeURIComponent(activeScenario)}`
-                    : "/simulator/live"
-                }
-              >
-                <Activity className="size-3.5" />{translateText("Ver visualização ao vivo")}</Link>
+              <Link target="_blank" href={`/simulator/live?scenario=${encodeURIComponent(activeScenario || scenarioRef.slice(scenarioRef.indexOf(":")+1))}&background=osm${activeScenario && status?.simulationId ? `&simulationId=${encodeURIComponent(status.simulationId)}` : ""}`}>
+                <Activity className="size-3.5" />{translateText("Abrir visualização no mapa (OSM)")}
+              </Link>
             </Button>
           )}
 
