@@ -50,18 +50,30 @@ export function StageMetricsView({ metrics: m, runId }: { metrics: StageMetrics;
   const work = phase?.work
   const count = (n: number) => n.toLocaleString(intlLocale)
   const phaseRows = m.phases
+  const estimation = m.details.estimation_progress as { group: number; groups: number; finished_variants: number; selected_variants: number } | undefined
+  const comparison = m.details.comparison_progress as { finished_variants: number; selected_variants: number; variant: string } | undefined
   return <div className="w-full space-y-2 border-t border-border pt-2 text-[11px]">
+    {estimation && <p className="flex flex-wrap justify-between gap-2 font-medium">
+      <span>{t("Interpolation group")}: {estimation.group} / {estimation.groups}</span>
+      <span>{t("Finished variants")}: {estimation.finished_variants} / {estimation.selected_variants}</span>
+    </p>}
+    {comparison && <div className="space-y-1">
+      <p className="flex flex-wrap justify-between gap-2 font-medium"><span>{t("Comparing variant")}: {comparison.variant}</span>
+        <span>{t("Compared variants")}: {comparison.finished_variants} / {comparison.selected_variants}</span></p>
+      {comparison.selected_variants > 0 && <progress className="h-1.5 w-full" value={comparison.finished_variants} max={comparison.selected_variants} aria-label={t("Compared variants")} />}
+    </div>}
     {phase && <div className="space-y-1">
-      <div className="flex flex-wrap justify-between gap-1"><b className="font-mono">{phase.name}</b>
-        {work?.completed != null && <span>{count(work.completed)}{work.total != null && ` / ${count(work.total)}`} {work.unit}</span>}
+      <div className="flex flex-wrap justify-between gap-1"><b className="font-mono">{t(phase.name)}</b>
+        {work?.completed != null && <span>{work.unit === "bytes" ? memory(work.completed) : count(work.completed)}{work.total != null && ` / ${work.unit === "bytes" ? memory(work.total) : count(work.total)}`} {work.unit === "bytes" ? "" : work.unit}</span>}
       </div>
       {work?.percent != null && <div className="flex items-center gap-2">
         <progress className="h-1.5 flex-1" value={work.percent} max={100} aria-label={phase.name} />
         <span>{numeric(work.percent)}%</span>
       </div>}
-      {work?.rate_per_second != null && <p className="text-muted-foreground">{numeric(work.rate_per_second)} {work.unit}/s
+      {work?.rate_per_second != null && <p className="text-muted-foreground">{work.unit === "bytes" ? memory(work.rate_per_second) : `${numeric(work.rate_per_second)} ${work.unit}`}/s
         {work.eta_seconds != null && work.eta_seconds > 0 && <> · {t("Estimated phase remaining")}: {seconds(work.eta_seconds)}</>}
       </p>}
+      {work?.percent != null && <p className="text-[10px] text-muted-foreground">{t("Progress and ETA apply to this operation only.")}</p>}
       {Object.keys(phase.details).length > 0 && <p className="break-words font-mono text-[10px] text-muted-foreground">{Object.entries(phase.details).map(([key, value]) => `${key}=${typeof value === "object" ? JSON.stringify(value) : value}`).join(" · ")}</p>}
     </div>}
     <dl className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">

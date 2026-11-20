@@ -37,6 +37,7 @@ export function LinkTooltip({ x, y, link }: Props) {
       )}
       <div>
         {translateText(link.simulationMode)} · {link.lengthM.toFixed(0)}{translateText("m · ")}{link.lanes}{" "}{translateText("faixa(s) · limite ")}{link.freeSpeedKmh.toFixed(0)}{translateText(" km/h")}</div>
+      <div>Cluster node: {link.hostNode || "Unknown"}</div>
       <div style={{ opacity: 0.7, marginTop: 2 }}>{translateText("clique para fixar detalhes")}</div>
     </div>
   )

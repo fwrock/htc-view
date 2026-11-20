@@ -4,14 +4,16 @@ import { vehicleSprite, VEHICLE_DIMENSIONS } from "../entitySprites"
 import { speedBucket } from "../speedColor"
 
 export function createVehicleSpriteLayer(
-  positions: VehiclePosition[]
+  positions: VehiclePosition[],
+  color?: (d: VehiclePosition) => [number, number, number]
 ): IconLayer<VehiclePosition> {
   return new IconLayer<VehiclePosition>({
     id: "vehicles-svg",
     data: positions,
     getPosition: (d) => d.position,
     getIcon: (d) =>
-      vehicleSprite(d.vehicleKind, speedBucket(d.speedKmh, d.freeSpeedKmh)),
+      (color ? { ...vehicleSprite(d.vehicleKind, speedBucket(d.speedKmh, d.freeSpeedKmh)), mask: true } : vehicleSprite(d.vehicleKind, speedBucket(d.speedKmh, d.freeSpeedKmh))),
+    getColor: color ?? (() => [255, 255, 255]),
     getSize: (d) =>
       (VEHICLE_DIMENSIONS[d.vehicleKind] ?? VEHICLE_DIMENSIONS.Unknown)!.length,
     getAngle: (d) => d.angle,
@@ -20,6 +22,7 @@ export function createVehicleSpriteLayer(
     billboard: false,
     // No minimum pixel size: entities and streets grow together as the user zooms in.
     sizeMinPixels: 0,
+    updateTriggers: { getIcon: !!color, getColor: color },
     pickable: true,
   })
 }

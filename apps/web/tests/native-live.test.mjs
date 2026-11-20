@@ -135,3 +135,21 @@ test("late MICRO updates cannot reopen a vehicle after a newer leave", () => {
   assert.deepEqual(after, before)
   assert.equal(store.getLatestTick(), 3)
 })
+
+test("HTC 3.9 bridge frames preserve large actor IDs and vehicle kind in live motion", () => {
+  const { links, nodes } = decodeLiveGeometry(raw, "run-a")
+  const store = new LiveSegmentStore(links, nodes, 1, 600, "run-a")
+  const identity = "9007199254740993"
+  const frame = (label, tick, fields) => parseStreamFrame(JSON.stringify({
+    simulationId: "run-a", entityId: identity, node: "node-1",
+    tick, lamportTick: tick + 1, label,
+    data: { car_id: identity, link_id: "17", ...fields },
+  }), "run-a")
+  store.ingest(frame("enter_micro_link", 0, { initial_position: 0, initial_velocity: 10 }))
+  store.ingest(frame("micro_update", 1, { position: 10, velocity: 10 }))
+  store.ingest(frame("leave_micro_link", 2, { final_position: 100, final_velocity: 10 }))
+  const segments = store.snapshot()
+  assert(segments.length > 0)
+  assert(segments.vehicleId.every(id => id === identity))
+  assert(segments.vehicleKind.every(kind => kind === "Car"))
+})

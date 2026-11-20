@@ -91,18 +91,20 @@ export function signalAppearance(
 
 export function createSignalSpriteLayer(
   markers: SignalMarker[],
-  currentTick: number
+  currentTick: number,
+  color?: (id: string) => [number, number, number]
 ): IconLayer<SignalMarker> {
   return new IconLayer<SignalMarker>({
     id: "signals-svg",
     data: markers,
     getPosition: (d) => d.position,
-    getIcon: (d) => signalSprite(signalAppearance(d, currentTick)),
+    getIcon: (d) => (color ? { ...signalSprite(signalAppearance(d, currentTick)), mask: true } : signalSprite(signalAppearance(d, currentTick))),
+    getColor: d => color ? color(d.signal?.signalId ?? "") : [255, 255, 255],
     getSize: 2.4,
     getAngle: (d) => d.angle,
     sizeUnits: "meters",
     billboard: false,
     pickable: true,
-    updateTriggers: { getIcon: currentTick },
+    updateTriggers: { getIcon: color ? [currentTick, true] : currentTick, getColor: color },
   })
 }

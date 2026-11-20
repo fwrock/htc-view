@@ -3,12 +3,14 @@
 import { pcaTrainingSettings } from "@/lib/simedape-pca"
 
 import { selectionRunStamp } from "@/lib/simedape-selection"
+import { estimationInputs, roadMetadataError, scenarioRoadFile } from "@/lib/simedape-estimation"
 import { SelectionSchedulingControl } from "@/components/simedape/selection-scheduling"
 import type { SelectionScheduling } from "@/lib/simedape-api"
 import { getSimedapeBackend, getSimedapeBackendDefault } from "@/lib/simedape-api"
 import { warpingSettings } from "@/lib/simedape-warping"
 import { isTrainingRun, hasTrainingModel } from "@/lib/simedape-training"
 import { TrainingRecovery } from "@/components/simedape/training-recovery"
+import { RunLogs } from "@/components/simedape/run-logs"
 
 import { useI18n } from "@/components/i18n-provider"
 
@@ -163,6 +165,7 @@ interface Form {
   /** How the model estimates: DTW warping paths and/or PCA. */
   trainMethods: ("dtw" | "pca")[]
   pcaComponents: string
+  pcaCentering: "cluster_mean" | "simulation_point"
   pcaMode: "components" | "variance"
   pcaVariance: string
   randomState: string
@@ -216,6 +219,7 @@ const BLANK: Form = {
   saveAs: "",
   trainMethods: ["dtw"],
   pcaComponents: "5",
+  pcaCentering: "cluster_mean",
   pcaMode: "components",
   pcaVariance: "95",
   randomState: "10",
@@ -246,7 +250,7 @@ function configFromForm(f: Form) {
     intervals: { start_time: Number(f.startTime), end_time: Number(f.endTime), interval_size: Number(f.intervalSize), sample_period: Number(f.samplePeriod || 0), ...(getSimedapeBackend() === "scala" ? { observation_mode: f.observationMode } : {}) },
     clustering: { n_clusters: Number(f.nClusters), random_state: Number(f.randomState), max_iter: Number(f.maxIter), clustering_size: Number(f.clusteringSize) },
     clickhouse: { simulation_id: f.simulationId, table: f.clickhouseTable },
-    ...(getSimedapeBackend() === "scala" && f.trainMethods.includes("pca") ? { pca_training: pcaTrainingSettings(f.pcaMode, f.pcaComponents, f.pcaVariance) } : {}),
+    ...(getSimedapeBackend() === "scala" && f.trainMethods.includes("pca") ? { pca_training: pcaTrainingSettings(f.pcaMode, f.pcaComponents, f.pcaVariance, f.pcaCentering) } : {}),
     compact_model: true,
     model_precision: f.precision,
     ...(getSimedapeBackend() === "scala" ? { warping_paths: warpingSettings(f), checkpoint_data: f.checkpointData } : {}),
@@ -278,6 +282,7 @@ function formFromConfig(base: Form, c: NamedConfig): Form {
     dtwWorkers: String(cfg.warping_paths?.n_jobs ?? 0),
     dtwBatchSize: String(cfg.warping_paths?.batch_size ?? 16),
     checkpointData: cfg.checkpoint_data ?? true,
+    pcaCentering: cfg.pca_training?.centering ?? "cluster_mean",
     pcaMode: cfg.pca_training?.selection_mode ?? (cfg.pca_training?.variance_threshold !== undefined ? "variance" : "components"),
     pcaComponents: String(cfg.pca_training?.n_components ?? 5),
     pcaVariance: String((cfg.pca_training?.variance_threshold ?? 0.95) * 100),
@@ -438,7 +443,7 @@ function ModelResult({ model, runId, runName }: { model: ModelInfo; runId: strin
           ["Séries", sm.n_series.toLocaleString(intlLocale), `${sm.series_length} pontos cada`],
           ["Clusters", String(sm.n_clusters), `${sm.simulation_points} pontos de simulação`],
           ["Arquivo do modelo", bytes(model.file_bytes), ratio > 1 ? `${ratio.toFixed(1)}× menor que o conteúdo sem compressão` : ""],
-          ["Métodos", sm.methods.map((m) => m.toUpperCase()).join(" + ") || "—", sm.dtw ? `${sm.dtw.paths.toLocaleString(intlLocale)} caminhos DTW (média ${sm.dtw.mean_path_length} passos)` : sm.pca ? `${sm.pca.n_components} componentes, ${sm.pca.explained_variance_pct_mean ?? "—"}% da variância` : ""],
+          ["Métodos", sm.methods.map((m) => m.toUpperCase()).join(" + ") || "—", sm.dtw ? `${sm.dtw.paths.toLocaleString(intlLocale)} caminhos DTW (média ${sm.dtw.mean_path_length} passos)` : sm.pca ? (sm.pca.centering === "simulation_point" ? translateText("{0} componentes, {1}% de energia residual", { 0: sm.pca.n_components, 1: sm.pca.explained_variance_pct_mean ?? "—" }) : `${sm.pca.n_components} componentes, ${sm.pca.explained_variance_pct_mean ?? "—"}% da variância`) : ""],
         ].map(([label, value, sub]) => (
           <div key={label} className="rounded-sm border border-border p-3">
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{translateText(label)}</p>
@@ -452,11 +457,11 @@ function ModelResult({ model, runId, runName }: { model: ModelInfo; runId: strin
         {sm.dtw.settings.algorithm === "fastdtw" && ` · ${translateText("Raio do FastDTW")}: ${sm.dtw.settings.radius ?? 1}`}
       </p>}
       {!!sm.pca?.per_cluster?.length && <div className="overflow-x-auto rounded-sm border border-border p-3">
-        <p className="mb-2 text-xs font-medium">{translateText("PCA por cluster")}{sm.pca.selection?.variance_threshold !== undefined && ` · ${translateText("Meta de variância por cluster (%)")}: ${sm.pca.selection.variance_threshold * 100}%`}</p>
-        <table className="w-full text-left text-xs"><thead><tr><th className="py-1">{translateText("Cluster")}</th><th>{translateText("Componentes selecionados")}</th><th>{translateText("Variância explicada (%)")}</th></tr></thead>
+        <p className="mb-2 text-xs font-medium">{translateText("PCA por cluster")} · {translateText(sm.pca.centering === "simulation_point" ? "Ponto de simulação do treino (experimental)" : "Média do cluster (padrão)")}{sm.pca.selection?.variance_threshold !== undefined && ` · ${translateText(sm.pca.centering === "simulation_point" ? "Meta de energia residual por cluster (%)" : "Meta de variância por cluster (%)")}: ${sm.pca.selection.variance_threshold * 100}%`}</p>
+        <table className="w-full text-left text-xs"><thead><tr><th className="py-1">{translateText("Cluster")}</th><th>{translateText("Componentes selecionados")}</th><th>{translateText(sm.pca.centering === "simulation_point" ? "Energia residual retida (%)" : "Variância explicada (%)")}</th></tr></thead>
           <tbody>{sm.pca.per_cluster.map(row => <tr key={row.cluster}><td className="py-1">{row.cluster + 1}</td><td>{row.n_components}</td><td>{row.explained_variance_pct === null ? "—" : row.explained_variance_pct.toLocaleString(intlLocale, { maximumFractionDigits: 2 })}</td></tr>)}</tbody>
         </table>
-        <p className="mt-1 text-[10px] text-muted-foreground">{translateText("Clusters sem variação não têm percentual de variância definido.")}</p>
+        <p className="mt-1 text-[10px] text-muted-foreground">{translateText(sm.pca.centering === "simulation_point" ? "Sem energia residual, o percentual retido é indefinido." : "Clusters sem variação não têm percentual de variância definido.")}</p>
       </div>}
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-sm border border-border p-3">
@@ -515,10 +520,10 @@ export default function SimedapePage() {
   const [trainLogs, setTrainLogs] = useState<{ id: string; text: string } | null>(null)
   const recoveryOptions = useMemo<TrainingResumeOptions | null>(() => {
     try {
-      return { methods: form.trainMethods, warping_paths: warpingSettings(form), pca_training: form.trainMethods.includes("pca") ? pcaTrainingSettings(form.pcaMode, form.pcaComponents, form.pcaVariance) : undefined,
+      return { methods: form.trainMethods, warping_paths: warpingSettings(form), pca_training: form.trainMethods.includes("pca") ? pcaTrainingSettings(form.pcaMode, form.pcaComponents, form.pcaVariance, form.pcaCentering) : undefined,
         model_precision: form.precision, clustering: { n_clusters: Number(form.nClusters), max_iter: Number(form.maxIter), random_state: Number(form.randomState), clustering_size: Number(form.clusteringSize) } }
     } catch { return null }
-  }, [form.trainMethods, form.dtwAlgorithm, form.dtwRadius, form.dtwWorkers, form.dtwBatchSize, form.pcaComponents, form.pcaMode, form.pcaVariance, form.precision, form.nClusters, form.maxIter, form.randomState, form.clusteringSize])
+  }, [form.trainMethods, form.dtwAlgorithm, form.dtwRadius, form.dtwWorkers, form.dtwBatchSize, form.pcaComponents, form.pcaMode, form.pcaVariance, form.pcaCentering, form.precision, form.nClusters, form.maxIter, form.randomState, form.clusteringSize])
 
   // --- persistence and URL ---
   useEffect(() => {
@@ -566,7 +571,7 @@ export default function SimedapePage() {
     const cfg = selected?.recommended_config
     setForm((f) => ({ ...f, simulationId:id, ...(cfg ? {
       configName:"", scenarioName:cfg.scenario_name ?? f.scenarioName,
-      streetInfoFile:cfg.street_info_file ?? f.streetInfoFile,
+      streetInfoFile:scenarioRoadFile(f.streetInfoFile, f.simulationId, id, cfg.street_info_file),
       clickhouseTable:cfg.clickhouse?.table ?? "vehicle_link_events",
       startTime:String(cfg.intervals?.start_time ?? 0), endTime:String(cfg.intervals?.end_time ?? 86400),
       intervalSize:String(cfg.intervals?.interval_size ?? 3600), samplePeriod:String(cfg.intervals?.sample_period ?? 0), observationMode:cfg.intervals?.observation_mode ?? "events",
@@ -684,6 +689,9 @@ export default function SimedapePage() {
     setError(null)
     setStarting(s)
     try {
+      if (s === "estimate" && !form.partial.trim()) throw new Error("Informe a simulação parcial.")
+      if (s === "estimate" && form.variants.length === 0) throw new Error("Escolha ao menos uma variação.")
+      if ((s === "estimate" || s === "sweep") && roadMetadataError(form.streetInfoFile)) throw new Error(roadMetadataError(form.streetInfoFile)!)
       const params = configFromForm(form)
       const config: Record<string, unknown> = { ...params }
       const id = s === "select" ? selectionRunStamp(stamp()) : stamp()
@@ -704,12 +712,12 @@ export default function SimedapePage() {
       }
       const stage_params: Record<string, Record<string, unknown>> = {}
       const stages = s === "train" ? trainStagesFor(form.trainMethods) : s === "sweep" ? STEP_STAGES.sweep : estimateStages
-      if (stages.includes("pca_train")) stage_params.pca_train = getSimedapeBackend() === "scala" ? { ...pcaTrainingSettings(form.pcaMode, form.pcaComponents, form.pcaVariance) } : { n_components: Number(form.pcaComponents) || 5 }
+      if (stages.includes("pca_train")) stage_params.pca_train = getSimedapeBackend() === "scala" ? { ...pcaTrainingSettings(form.pcaMode, form.pcaComponents, form.pcaVariance, form.pcaCentering) } : { n_components: Number(form.pcaComponents) || 5 }
       if (stages.includes("warping_paths") && backend === "scala") stage_params.warping_paths = { ...warpingSettings(form) }
       if (form.stages[s].includes("selection")) stage_params.selection = { strategy: form.strategy, percentage: Number(form.percentage), seed: Number(form.seed), ...(TOPOLOGY_STRATEGIES.includes(form.strategy) ? { topology_file: form.topologyFile.trim() } : {}) }
       if ((s === "estimate" || s === "sweep") && form.reference.trim()) stage_params.scenario_metrics = { reference_dir: form.reference.trim() }
       if (s === "estimate") {
-        stage_params.estimation_variants = { variants: form.variants, ...(form.partial ? { second_scenario_dir: form.partial } : {}) }
+        stage_params.estimation_variants = { variants: form.variants, second_scenario_dir: form.partial.trim() }
         stage_params.compare = { estimated_files: form.variants.map((k) => `result_${k}`), generate_plots: form.variants.length <= 12 }
       }
       if (s === "sweep") {
@@ -820,6 +828,7 @@ export default function SimedapePage() {
     }
   }
   const estimateRun = runFor("estimate")
+  const previousEstimateInputs = estimationInputs(estimateRun)
   const sweepRun = runFor("sweep")
   const stepRun: Record<string, RunSummary | null> = { train: trainRun, select: selectRun, estimate: estimateRun, sweep: sweepRun }
   const intervals = Number(form.intervalSize) > 0 ? Math.max(0, Math.floor((Number(form.endTime) - Number(form.startTime)) / Number(form.intervalSize))) : 0
@@ -865,9 +874,28 @@ export default function SimedapePage() {
           <RunCard key={active.run_id} run={active} onCancel={() => void cancel(active.run_id)} />
         ))}
         {run ? <RunCard run={run} onCancel={() => void cancel(run.run_id)} /> : <p className="text-xs text-muted-foreground">{translateText("Esta etapa ainda não foi executada para este cenário.")}</p>}
+        {run && (s === "estimate" || s === "sweep") && <RunLogs key={run.run_id} runId={run.run_id} status={run.status} />}
       </div>
     )
   }
+
+  const partialResultsField = (
+    <Field
+      label={form.dataSource === "clickhouse" ? translateText("Resultados da parcial (simulation_id)") : translateText("Resultados da parcial (pasta)")}
+      hint={
+        partialSimId ? form.dataSource === "clickhouse" ? translateText("Preenchido com o id desta parcial ({0}). Confira que o engine grava no ClickHouse com esse id.", { 0: partialSimId }) : translateText("A parcial grava os resultados sob o id {0}; informe a pasta onde o relatório (CSV) dela foi gravado.", { 0: partialSimId }) : translateText("Onde estão os resultados (eventos por via) da simulação parcial. A etapa Estimar lê esta simulação para estimar o cenário completo. Com a parcial iniciada acima, o id é preenchido sozinho (ClickHouse); senão, escolha ou digite.")
+      }
+    >
+      <>
+        <input aria-label={form.dataSource === "clickhouse" ? translateText("Resultados da parcial (simulation_id)") : translateText("Resultados da parcial (pasta)")} className={cn(input, "font-mono")} list={form.dataSource === "clickhouse" ? "partial-simulations" : undefined} placeholder={form.dataSource === "clickhouse" ? translateText("Escolha da lista ou digite o simulation_id") : translateText("/caminho/da/parcial")} value={form.partial} onChange={(e) => set("partial", e.target.value)} />
+        {form.dataSource === "clickhouse" && (
+          <datalist id="partial-simulations">
+            {simulations.filter((s) => s.id !== form.simulationId).map((s) => <option key={s.id} value={s.id} />)}
+          </datalist>
+        )}
+      </>
+    </Field>
+  )
 
   return (
     <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-6">
@@ -1079,17 +1107,24 @@ export default function SimedapePage() {
                     {getSimedapeBackend() === "scala" && <label className="flex flex-col gap-1 text-xs">{translateText("Seleção do PCA por cluster")}
                       <select aria-label="PCA selection mode" className={input} value={form.pcaMode} onChange={(e) => set("pcaMode", e.target.value as Form["pcaMode"])}>
                         <option value="components">{translateText("Quantidade de componentes")}</option>
-                        <option value="variance">{translateText("Percentual de variância explicada")}</option>
+                        <option value="variance">{translateText(form.pcaCentering === "simulation_point" ? "Percentual de energia residual" : "Percentual de variância explicada")}</option>
                       </select>
                     </label>}
-                    {getSimedapeBackend() === "scala" && form.pcaMode === "variance" ? <label className="flex flex-col gap-1 text-xs">{translateText("Meta de variância por cluster (%)")}
+                    {getSimedapeBackend() === "scala" && <label className="flex flex-col gap-1 text-xs">{translateText("Base de reconstrução do PCA")}
+                      <select aria-label="PCA centering" className={input} value={form.pcaCentering} onChange={e => set("pcaCentering", e.target.value as Form["pcaCentering"])}>
+                        <option value="cluster_mean">{translateText("Média do cluster (padrão)")}</option>
+                        <option value="simulation_point">{translateText("Ponto de simulação do treino (experimental)")}</option>
+                      </select>
+                    </label>}
+                    {getSimedapeBackend() === "scala" && form.pcaCentering === "simulation_point" && <p className="text-[11px] text-muted-foreground">{translateText("Aprende desvios em relação ao ponto de simulação completo do treino. A seleção percentual mede energia residual, não variância centrada. Exige novo treino PCA; o ponto parcial é comparado à base salva.")}</p>}
+                    {getSimedapeBackend() === "scala" && form.pcaMode === "variance" ? <label className="flex flex-col gap-1 text-xs">{translateText(form.pcaCentering === "simulation_point" ? "Meta de energia residual por cluster (%)" : "Meta de variância por cluster (%)")}
                       <input aria-label="PCA variance target" className={input} type="number" min={0.1} max={100} step={0.1} value={form.pcaVariance} onChange={(e) => set("pcaVariance", e.target.value)} />
                     </label> : <label className="flex flex-col gap-1 text-xs">{translateText("Componentes do PCA")}<input aria-label="PCA component count" className={input} type="number" min={1} step={1} value={form.pcaComponents} onChange={(e) => set("pcaComponents", e.target.value)} /></label>}
                     {getSimedapeBackend() === "scala" && <p className="text-[11px] text-muted-foreground">{translateText("Cada cluster é treinado separadamente. A meta seleciona a menor quantidade que retém a variância pedida; pode resultar em quantidades diferentes por cluster. Metas maiores aumentam os pesos armazenados.")}</p>}
                     <details className="text-[11px] text-muted-foreground">
                       <summary className="cursor-pointer">{translateText("O que é este valor?")}</summary>
                       <div className="mt-1.5 flex flex-col gap-1.5">
-                        <p>{translateText("É quantos padrões temporais o PCA guarda em cada cluster. O 1º é o padrão que mais explica as diferenças entre as séries (por exemplo, pico da manhã mais forte ou mais fraco), o 2º é o segundo mais importante, e assim por diante. Cada série vira: ")}<b>{translateText("média do cluster + peso₁ × padrão₁ + peso₂ × padrão₂ + …")}</b></p>
+                        <p>{translateText("É quantos padrões temporais o PCA guarda em cada cluster. O 1º é o padrão que mais explica as diferenças entre as séries (por exemplo, pico da manhã mais forte ou mais fraco), o 2º é o segundo mais importante, e assim por diante. Cada série vira: ")}<b>{translateText(form.pcaCentering === "simulation_point" ? "ponto de simulação do treino + peso₁ × padrão₁ + peso₂ × padrão₂ + …" : "média do cluster + peso₁ × padrão₁ + peso₂ × padrão₂ + …")}</b></p>
                         <p>{translateText("Na estimativa, só existe o começo da série (simulação parcial). O PCA acha os pesos que reproduzem esse começo e usa os mesmos pesos para reconstruir a série inteira.")}</p>
                         <ul className="list-disc pl-4">
                           <li><b>{translateText("Poucos (1 a 3):")}</b>{translateText(" só a forma geral; estável, mas perde detalhes.")}</li>
@@ -1342,21 +1377,7 @@ export default function SimedapePage() {
               </div>
             )}
 
-            <Field
-              label={form.dataSource === "clickhouse" ? translateText("Resultados da parcial (simulation_id)") : translateText("Resultados da parcial (pasta)")}
-              hint={
-                partialSimId ? form.dataSource === "clickhouse" ? translateText("Preenchido com o id desta parcial ({0}). Confira que o engine grava no ClickHouse com esse id.", { 0: partialSimId }) : translateText("A parcial grava os resultados sob o id {0}; informe a pasta onde o relatório (CSV) dela foi gravado.", { 0: partialSimId }) : translateText("Onde estão os resultados (eventos por via) da simulação parcial. A etapa Estimar lê esta simulação para estimar o cenário completo. Com a parcial iniciada acima, o id é preenchido sozinho (ClickHouse); senão, escolha ou digite.")
-              }
-            >
-              <>
-                <input className={cn(input, "font-mono")} list="partial-simulations" placeholder={form.dataSource === "clickhouse" ? translateText("Escolha da lista ou digite o simulation_id") : translateText("/caminho/da/parcial")} value={form.partial} onChange={(e) => set("partial", e.target.value)} />
-                {form.dataSource === "clickhouse" && (
-                  <datalist id="partial-simulations">
-                    {simulations.filter((s) => s.id !== form.simulationId).map((s) => <option key={s.id} value={s.id} />)}
-                  </datalist>
-                )}
-              </>
-            </Field>
+            {partialResultsField}
             <Button size="sm" className="self-start" disabled={!form.partial.trim()} onClick={() => setStep("estimate")}>{translateText("Continuar: estimar →")}</Button>
           </>
         )}
@@ -1369,16 +1390,32 @@ export default function SimedapePage() {
               <VariantPicker value={form.variants} onChange={(v) => set("variants", v)}
                 available={{ dtw: snapshotModel ? snapshotModel.summary.methods.includes("dtw") : true, pca: snapshotModel ? snapshotModel.summary.methods.includes("pca") : true }} />
             </div>
-            <div className="rounded-sm border border-border bg-muted/30 p-3 text-[11px]"><b>{translateText("Parcial:")}</b> {translateText(form.partial || "(não informada: etapa 4)")}</div>
+            <Field label={translateText("Arquivo de informações das vias")} wide hint={translateText("CSV do cenário completo: link;length;capacity;freespeed. Obrigatório para métricas e estimativa.")}>
+              <input className={cn(input, "font-mono")} placeholder="/scenarios/tl_1pct_meso/streets-simedape-repaired.csv" value={form.streetInfoFile} onChange={(e) => set("streetInfoFile", e.target.value)} />
+            </Field>
+            {partialResultsField}
+            {previousEstimateInputs && estimateRun && !isActive(estimateRun.status) && (
+              <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                <Button size="sm" variant="outline" disabled={starting !== null} onClick={() => setForm(f => ({ ...f, ...previousEstimateInputs }))}>
+                  <RotateCcw className="size-3.5" />{translateText("Reutilizar entradas da estimativa anterior")}
+                </Button>
+                <span className="font-mono text-muted-foreground">{previousEstimateInputs.partial}</span>
+                <span className="text-muted-foreground">{translateText(fmtTs(estimateRun.created_at, intlLocale))}</span>
+              </div>
+            )}
             <ReferencePicker value={form.reference} onChange={(v) => set("reference", v)} isClickhouse={form.dataSource === "clickhouse"} simulations={simulations.map((x) => x.id)}
               base={form.dataSource === "clickhouse" ? form.simulationId : form.scenarioDir} hasModifications={form.modFiles.length > 0} />
-            {translateText(runPanel("estimate", `Estimar (${form.variants.length} variações)`, snapshotBlocker ?? (!form.partial.trim() ? "Informe a simulação parcial (etapa 4)." : form.variants.length === 0 ? "Escolha ao menos uma variação." : null), snapshotField))}
+            {translateText(runPanel("estimate", `Estimar (${form.variants.length} variações)`, snapshotBlocker ?? roadMetadataError(form.streetInfoFile) ?? (!form.partial.trim() ? "Informe a simulação parcial." : form.variants.length === 0 ? "Escolha ao menos uma variação." : null), snapshotField))}
             {estimateRun?.status === "completed" && <ResultsView runId={estimateRun.run_id} runName={estimateRun.name} />}
           </>
         )}
 
         {step === "sweep" && (
           <>
+            <Field label={translateText("Arquivo de informações das vias")} wide hint={translateText("CSV do cenário completo: link;length;capacity;freespeed. Obrigatório para métricas e estimativa.")}>
+              <input className={cn(input, "font-mono")} placeholder="/scenarios/tl_1pct_meso/streets-simedape-repaired.csv" value={form.streetInfoFile} onChange={(e) => set("streetInfoFile", e.target.value)} />
+            </Field>
+
             <SweepPanel
               scenarios={form.sweepScenarios}
               onScenarios={(v) => set("sweepScenarios", v)}
@@ -1391,7 +1428,7 @@ export default function SimedapePage() {
             />
             <ReferencePicker value={form.reference} onChange={(v) => set("reference", v)} isClickhouse={form.dataSource === "clickhouse"} simulations={simulations.map((x) => x.id)}
               base={form.dataSource === "clickhouse" ? form.simulationId : form.scenarioDir} hasModifications={form.modFiles.length > 0} />
-            {translateText(runPanel("sweep", `Varrer (${form.sweepVariants.length} variações × ${form.sweepScenarios.filter((r) => r.dir.trim()).length} parciais)`, snapshotBlocker ?? (form.sweepVariants.length === 0 ? "Escolha ao menos uma variação." : form.sweepScenarios.filter((r) => r.dir.trim()).length === 0 ? "Informe ao menos uma parcial." : null), snapshotField))}
+            {translateText(runPanel("sweep", `Varrer (${form.sweepVariants.length} variações × ${form.sweepScenarios.filter((r) => r.dir.trim()).length} parciais)`, snapshotBlocker ?? roadMetadataError(form.streetInfoFile) ?? (form.sweepVariants.length === 0 ? "Escolha ao menos uma variação." : form.sweepScenarios.filter((r) => r.dir.trim()).length === 0 ? "Informe ao menos uma parcial." : null), snapshotField))}
             {sweepRun?.status === "completed" && <SweepResults runId={sweepRun.run_id} />}
           </>
         )}

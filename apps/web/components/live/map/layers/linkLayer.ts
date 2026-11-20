@@ -10,6 +10,7 @@ import type { LinksTable } from "../../types/replay"
  * before this was binary).
  */
 export interface LinkSegment {
+  hostNode?: string
   osm?: RoadPath
   linkId: string
   sourcePosition: [number, number]

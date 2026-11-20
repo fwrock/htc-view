@@ -90,6 +90,7 @@ export interface ClickHouseSettings {
 }
 
 export interface PcaTrainingSettings {
+  centering?: "cluster_mean" | "simulation_point"
   selection_mode?: "components" | "variance"
   n_components?: number
   variance_threshold?: number
@@ -453,7 +454,7 @@ export interface ModelInfo {
     simulation_points: number
     methods: ("dtw" | "pca")[]
     dtw: { clusters: number; paths: number; mean_path_length: number; settings?: { algorithm: "exact" | "fastdtw"; radius?: number } } | null
-    pca: { clusters: number; n_components: number; explained_variance_pct_mean: number | null; selection?: PcaTrainingSettings | null; per_cluster?: { cluster: number; n_components: number; explained_variance_pct: number | null; target_met: boolean | null }[] } | null
+    pca: { centering?: "cluster_mean" | "simulation_point"; spectrum_measure?: "centred_variance" | "residual_energy"; clusters: number; n_components: number; explained_variance_pct_mean: number | null; selection?: PcaTrainingSettings | null; per_cluster?: { cluster: number; n_components: number; explained_variance_pct: number | null; target_met: boolean | null }[] } | null
   }
   total_raw_bytes: number
   total_stored_bytes: number

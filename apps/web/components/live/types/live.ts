@@ -3,6 +3,7 @@
  * (see htc-replay's docs/ETL_SCHEMA.md "How a segment's (...) is derived" section; the live
  * path below mirrors that logic, incrementally instead of from a whole file). */
 export interface LiveEnvelope {
+  node?: string;
   simulationId: string;
   entityId: string;
   tick: number;

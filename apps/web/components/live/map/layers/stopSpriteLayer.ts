@@ -17,13 +17,15 @@ export const STOP_SIZE_M: Record<string, number> = {
 }
 
 export function createStopSpriteLayer(
-  stops: StopConfig[]
+  stops: StopConfig[], color?: (id: string) => [number, number, number]
 ): IconLayer<StopConfig> {
   return new IconLayer<StopConfig>({
     id: "stops-svg",
     data: stops,
     getPosition: (d) => [d.lon, d.lat],
-    getIcon: (d) => icons[d.kind]!,
+    getIcon: (d) => ({ ...icons[d.kind]!, mask: !!color }),
+    getColor: d => color ? color(d.stopId) : [255, 255, 255],
+    updateTriggers: { getIcon: !!color, getColor: color },
     getSize: (d) => STOP_SIZE_M[d.kind] ?? 5,
     sizeUnits: "meters",
     // Stops stay findable from far away (8 px floor) but grow with the street once zoomed in.

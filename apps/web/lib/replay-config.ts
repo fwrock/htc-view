@@ -38,6 +38,7 @@ export const REPLAY_ARTIFACT_FILES: readonly string[] = [
   "nodes.arrow",
   "segments.arrow",
   "signals.json",
+  "placements.json",
   "stops.json",
   "rail_links.arrow",
   "road_network.json",

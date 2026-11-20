@@ -30,6 +30,7 @@ export function NodeTooltip({ x, y, node }: Props) {
     >
       <div style={{ fontWeight: 600, marginBottom: 2 }}>{node.nodeId}</div>
       <div>{node.hasSignal ? translateText("com semáforo") : translateText("interseção")}</div>
+      <div>Cluster node: {node.hostNode || "Unknown"}</div>
       <div style={{ opacity: 0.7, marginTop: 2 }}>{translateText("clique para fixar detalhes")}</div>
     </div>
   );

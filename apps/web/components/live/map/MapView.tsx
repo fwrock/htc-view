@@ -1,5 +1,8 @@
 "use client"
 
+import { nodeColor, buildNodePalette, allPlacementNodes, indexPlacements, placementAt, linkSpeeds, linkVelocityColor } from "./nodeColor"
+import { colorBuffer, tintBinaryLayer } from "./colorLayers"
+
 import { useI18n } from "@/components/i18n-provider"
 import { useEffect, useMemo, useState } from "react"
 import { DeckGL } from "@deck.gl/react"
@@ -130,6 +133,13 @@ export function MapView({
 }: Props) {
   const { t: translateText, intlLocale } = useI18n()
 
+  const [actorColor, setActorColor] = useState<"speed" | "node">("speed")
+  const [linkColor, setLinkColor] = useState<"default" | "node" | "velocity">("default")
+  const placementIndex = useMemo(() => indexPlacements(segments.placements), [segments.placements])
+  const hosts = useMemo(() => new Map([...placementIndex.keys()].map(id => [id, placementAt(placementIndex, id, currentTick)])), [placementIndex, currentTick])
+  const nodePalette = useMemo(() => buildNodePalette(allPlacementNodes(placementIndex)), [placementIndex])
+  const hostColor = (id: string) => nodeColor(hosts.get(id), nodePalette)
+  const velocities = useMemo(() => linkColor === "velocity" ? linkSpeeds(segments, currentTick) : new Map<string, number>(), [segments, currentTick, linkColor])
   const [hover, setHover] = useState<Hover | null>(null)
   const [selected, setSelected] = useState<Selected | null>(null)
   const [background, setBackground] = useState<"auto" | "osm" | "none">(() => {
@@ -200,7 +210,7 @@ export function MapView({
     () => new Map(links.linkId.map((id, i) => [id, links.lanes[i]!])),
     [links]
   )
-  const aggregate = shouldAggregate(viewState.zoom)
+  const aggregate = actorColor !== "node" && shouldAggregate(viewState.zoom)
 
   // Binary + worker path — used for "circle" (the scale-oriented representation) and the
   // congestion heatmap. SVG/shape stay on the plain JS-object path (computeVehiclePositions)
@@ -209,7 +219,7 @@ export function MapView({
   // meaningful anyway — see docs/KNOWN_GAPS.md.
   const useBinaryPath =
     representation === "circle" || (aggregate && !hasEmissions)
-  const workerFrame = useVehicleWorker(
+  const rawWorkerFrame = useVehicleWorker(
     displaySegments,
     freeSpeedLookup,
     currentTick,
@@ -223,6 +233,12 @@ export function MapView({
   // took a 718k-link scenario from a ~38s unresponsive stall to sub-second: the old path built
   // a JS object per link/node and made deck.gl call accessor functions that many times to
   // populate its own attribute buffers, every time a layer was reconstructed.
+  const workerFrame = useMemo(() => {
+    if (!rawWorkerFrame || actorColor !== "node") return rawWorkerFrame
+    const colors = new Uint8Array(rawWorkerFrame.count * 3)
+    for (let i = 0; i < rawWorkerFrame.count; i++) colors.set(nodeColor(hosts.get(displaySegments.vehicleId[rawWorkerFrame.segmentIndices[i]!]!), nodePalette), i * 3)
+    return { ...rawWorkerFrame, colors }
+  }, [rawWorkerFrame, actorColor, hosts, displaySegments, nodePalette])
   const linkPositions = useMemo(() => buildPositionBuffers(links), [links])
   const linkLayer = useMemo(
     () =>
@@ -249,10 +265,10 @@ export function MapView({
     [nodes, links, signals]
   )
   const signalSpriteLayer = useMemo(
-    () => createSignalSpriteLayer(signalMarkers, currentTick),
-    [signalMarkers, currentTick]
+    () => createSignalSpriteLayer(signalMarkers, currentTick, actorColor === "node" ? hostColor : undefined),
+    [signalMarkers, currentTick, actorColor, hosts]
   )
-  const stopSpriteLayer = useMemo(() => createStopSpriteLayer(stops), [stops])
+  const stopSpriteLayer = useMemo(() => createStopSpriteLayer(stops, actorColor === "node" ? hostColor : undefined), [stops, actorColor, hosts])
   // Lane markings and rail sleepers are centimetres wide: build them only when zoomed in,
   // and only for the tiles around the camera (rebuilt when the camera crosses a tile edge).
   const detailZoom = viewState.zoom >= 16.5
@@ -286,9 +302,9 @@ export function MapView({
     [links, detailKey]
   )
   const railLinkLayers = useMemo(
-    () => createRailLinkLayers(railLinks, detail?.window ?? null),
+    () => createRailLinkLayers(railLinks, detail?.window ?? null, linkColor === "node" ? hostColor : linkColor === "velocity" ? id => linkVelocityColor(velocities.get(id), freeSpeedLookup.get(id) ?? 0) : undefined),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [railLinks, detailKey]
+    [railLinks, detailKey, linkColor, hosts, velocities, freeSpeedLookup]
   )
 
   // A signal can list more than one node (rare — most control a single intersection), so this
@@ -333,8 +349,8 @@ export function MapView({
         ? [createVehicleBinaryScatterLayer(workerFrame)]
         : []
       : representation === "sprite"
-        ? [createVehicleSpriteLayer(vehiclePositions)]
-        : [createVehicleIconLayer(vehiclePositions)]
+        ? [createVehicleSpriteLayer(vehiclePositions, actorColor === "node" ? d => hostColor(d.vehicleId) : undefined)]
+        : [createVehicleIconLayer(vehiclePositions, actorColor === "node" ? d => hostColor(d.vehicleId) : undefined)]
 
   const layers = [
     linkLayer,
@@ -346,6 +362,15 @@ export function MapView({
     stopSpriteLayer,
     signalSpriteLayer,
   ]
+
+  const displayLayers = layers.map(layer => {
+    if (!layer) return layer
+    if (layer.id === "links" && linkColor !== "default")
+      return tintBinaryLayer(layer, colorBuffer(links.linkId, id => linkColor === "node" ? hostColor(id) : linkVelocityColor(velocities.get(id), freeSpeedLookup.get(id) ?? 0), selected?.kind === "link" ? selected.link.linkId : undefined), "getColor")
+    if (layer.id === "nodes" && actorColor === "node")
+      return tintBinaryLayer(layer, colorBuffer(nodes.nodeId, hostColor, selected?.kind === "node" ? selected.node.nodeId : undefined), "getFillColor")
+    return layer
+  })
 
   // Binary-data layers don't carry a per-item JS object for deck.gl to hand back on pick —
   // only `info.index`, resolved into a plain info object on demand here (hover/click are rare,
@@ -422,16 +447,26 @@ export function MapView({
 
   return (
     <>
+      <div style={{ position: "absolute", right: 12, top: 12, zIndex: 2, background: "#18181bee", color: "white", padding: 10, borderRadius: 6, maxHeight: "40vh", overflow: "auto", fontSize: 12 }}>
+        <label>Actors color <select aria-label="Actors color" value={actorColor} onChange={e => setActorColor(e.target.value as "speed" | "node")}><option value="speed">Velocity</option><option value="node">Cluster node</option></select></label>
+        <br />
+        <label>Links color <select aria-label="Links color" value={linkColor} onChange={e => setLinkColor(e.target.value as "default" | "node" | "velocity")}><option value="default">Default</option><option value="node">Cluster node</option><option value="velocity">Velocity</option></select></label>
+        {(actorColor === "node" || linkColor === "node") && <div>
+          {[...new Set([...hosts.values()].filter((n): n is string => !!n))].sort().map(node => <div key={node}><span style={{ color: `rgb(${nodeColor(node, nodePalette).join(",")})` }}>■</span> {node}</div>)}
+          <div style={{ color: "#aaa" }}>■ Unknown / no placement reported</div>
+        </div>}
+        {linkColor === "velocity" && <div>Mean active vehicle speed / free speed<br />Black ≤ 2 km/h · Red &lt; 40% · Yellow &lt; 80% · Green ≥ 80%<br />Gray: no active speed samples</div>}
+      </div>
       <DeckGL
         onLoad={() => onReady?.()}
         initialViewState={{ ...initialViewState, maxZoom: 24 }}
         viewState={{ ...viewState, maxZoom: 24 }}
         controller
-        layers={layers}
+        layers={displayLayers}
         onViewStateChange={({ viewState: vs }) => setViewState(vs as ViewState)}
         getTooltip={({ object, layer }) => {
           if (layer?.id === "vehicles-svg" && object)
-            return `${object.vehicleKind}${object.linkId?.startsWith("sidewalk:") ? translateText(" · calçada virtual") : ""} · ${object.vehicleId}\n${object.speedKmh.toLocaleString(intlLocale, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km/h${object.lane === undefined ? "" : Number.isInteger(object.lane) ? translateText(" · faixa {0}", { 0: object.lane + 1 }) : translateText(" · mudando de faixa")}`
+            return `${object.vehicleKind}${object.linkId?.startsWith("sidewalk:") ? translateText(" · calçada virtual") : ""} · ${object.vehicleId}\nCluster node: ${hosts.get(object.vehicleId) || "Unknown"}\n${object.speedKmh.toLocaleString(intlLocale, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km/h${object.lane === undefined ? "" : Number.isInteger(object.lane) ? translateText(" · faixa {0}", { 0: object.lane + 1 }) : translateText(" · mudando de faixa")}`
           if (layer?.id === "stops-svg" && object)
             return `${object.kind} · ${object.label || object.stopId}`
           return null
@@ -498,10 +533,10 @@ export function MapView({
         </select>
       </label>
       {hover?.kind === "link" && (
-        <LinkTooltip x={hover.x} y={hover.y} link={hover.link} />
+        <LinkTooltip x={hover.x} y={hover.y} link={{ ...hover.link, hostNode: hosts.get(hover.link.linkId) }} />
       )}
       {hover?.kind === "node" && (
-        <NodeTooltip x={hover.x} y={hover.y} node={hover.node} />
+        <NodeTooltip x={hover.x} y={hover.y} node={{ ...hover.node, hostNode: hosts.get(hover.node.nodeId) }} />
       )}
       {selected?.kind === "link" && (
         <LinkPanel

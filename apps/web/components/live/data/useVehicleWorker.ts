@@ -8,6 +8,7 @@ import type { Bounds } from "../workers/spatialGrid"
 import type { IndexedRoad } from "../map/roadGeometry"
 
 export interface WorkerFrame {
+  segmentIndices: Uint32Array
   count: number
   positions: Float32Array
   colors: Uint8Array
@@ -68,6 +69,7 @@ export function useVehicleWorker(
           count: msg.count,
           positions: msg.positions,
           colors: msg.colors,
+          segmentIndices: msg.segmentIndices,
           weights: msg.weights,
           truncated: msg.truncated,
           version: frameVersion.current,

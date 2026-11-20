@@ -93,7 +93,7 @@ const SHAPE_ICON_URLS: Record<Shape, string> = {
 /** Vehicle kind is a distinct geometric shape (circle/square/triangle); the shape's fill
  * color is the speed bucket color, so shape and speed are both visible on one glyph.
  */
-export function createVehicleIconLayer(positions: VehiclePosition[]): IconLayer<VehiclePosition> {
+export function createVehicleIconLayer(positions: VehiclePosition[], color?: (d: VehiclePosition) => [number, number, number]): IconLayer<VehiclePosition> {
   return new IconLayer<VehiclePosition>({
     id: "vehicles-icon",
     data: positions,
@@ -109,10 +109,10 @@ export function createVehicleIconLayer(positions: VehiclePosition[]): IconLayer<
     },
     getSize: 16,
     sizeUnits: "pixels",
-    getColor: (d) => speedColor(d.speedKmh, d.freeSpeedKmh),
+    getColor: (d) => color ? color(d) : speedColor(d.speedKmh, d.freeSpeedKmh),
     updateTriggers: {
       getPosition: positions,
-      getColor: positions
+      getColor: [positions, color]
     }
   });
 }

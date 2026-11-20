@@ -13,3 +13,9 @@ test('Variance percentages are encoded as native fractions rather than component
   assert.deepEqual(pcaTrainingSettings('variance', '5', '100'), { selection_mode: 'variance', variance_threshold: 1 })
   for (const percent of ['', '0', '-1', '100.1', 'NaN', 'Infinity']) assert.throws(() => pcaTrainingSettings('variance', '5', percent))
 })
+
+test('simulation-point centering survives fixed-rank and energy-target API settings', () => {
+  assert.deepEqual(pcaTrainingSettings('components', '5', '95', 'simulation_point'), {centering:'simulation_point',n_components:5})
+  assert.deepEqual(pcaTrainingSettings('variance', '5', '95', 'simulation_point'), {centering:'simulation_point',selection_mode:'variance',variance_threshold:.95})
+  assert.throws(() => pcaTrainingSettings('components', '5', '95', 'wrong'))
+})

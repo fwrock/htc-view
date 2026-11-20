@@ -9,6 +9,7 @@ const GAUGE_M = 1.435
 const TRACK_SPACING_M = 4
 
 interface RailStroke {
+  linkId: string
   segment: Segment
   widthM: number
   color: [number, number, number, number]
@@ -34,24 +35,25 @@ export function buildRailStrokes(railLinks: RailLinksTable, detail: ViewWindow |
   const bed: RailStroke[] = [], fine: RailStroke[] = []
   for (let i = 0; i < railLinks.length; i++) {
     for (const { coords, subway } of tracksOf(railLinks, i)) {
-      bed.push({ segment: [coords[0]!, coords[coords.length - 1]!], widthM: Math.min(LANE_WIDTH_M, TRACK_SPACING_M - 0.4) , color: [...BED[subway ? "subway" : "rail"]] as RailStroke["color"] })
+      bed.push({ linkId: railLinks.linkId[i]!, segment: [coords[0]!, coords[coords.length - 1]!], widthM: Math.min(LANE_WIDTH_M, TRACK_SPACING_M - 0.4) , color: [...BED[subway ? "subway" : "rail"]] as RailStroke["color"] })
       if (detail && touchesWindow(coords, detail))
-        for (const segment of sleeperSegments(coords, 0.7, 1.2)) fine.push({ segment, widthM: 0.26, color: SLEEPER })
+        for (const segment of sleeperSegments(coords, 0.7, 1.2)) fine.push({ linkId: railLinks.linkId[i]!, segment, widthM: 0.26, color: SLEEPER })
       for (const side of [-GAUGE_M / 2, GAUGE_M / 2]) {
         const rail = offsetPolyline(coords, side)
-        fine.push({ segment: [rail[0]!, rail[rail.length - 1]!], widthM: 0.14, color: STEEL })
+        fine.push({ linkId: railLinks.linkId[i]!, segment: [rail[0]!, rail[rail.length - 1]!], widthM: 0.14, color: STEEL })
       }
     }
   }
   return { bed, fine }
 }
 
-function strokeLayer(id: string, data: RailStroke[], minPx: number): LineLayer<RailStroke> {
+function strokeLayer(id: string, data: RailStroke[], minPx: number, color?: (id: string) => [number, number, number]): LineLayer<RailStroke> {
   return new LineLayer<RailStroke>({
     id, data,
     getSourcePosition: (d) => d.segment[0],
     getTargetPosition: (d) => d.segment[1],
-    getColor: (d) => d.color,
+    getColor: (d) => color ? color(d.linkId) : d.color,
+    updateTriggers: { getColor: color },
     getWidth: (d) => d.widthM,
     widthUnits: "meters",
     widthMinPixels: minPx,
@@ -60,7 +62,7 @@ function strokeLayer(id: string, data: RailStroke[], minPx: number): LineLayer<R
 }
 
 /** Rail network drawn as railway: bed, sleepers and two rails — never as a road-like stroke. */
-export function createRailLinkLayers(railLinks: RailLinksTable, detail: ViewWindow | null): LineLayer<RailStroke>[] {
+export function createRailLinkLayers(railLinks: RailLinksTable, detail: ViewWindow | null, color?: (id: string) => [number, number, number]): LineLayer<RailStroke>[] {
   const { bed, fine } = buildRailStrokes(railLinks, detail)
-  return [strokeLayer("rail-bed", bed, 2), strokeLayer("rail-detail", fine, 0)]
+  return [strokeLayer("rail-bed", bed, 2, color), strokeLayer("rail-detail", fine, 0, color)]
 }

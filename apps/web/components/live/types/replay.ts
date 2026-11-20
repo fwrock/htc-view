@@ -37,7 +37,10 @@ export interface RoadNetwork {
 }
 
 /** Columnar view over `segments.arrow` — one entry per index across all arrays. */
+export interface ActorPlacement { entityId: string; tick: number; node: string }
+
 export interface SegmentsTable {
+  placements?: ActorPlacement[];
   /** Optional for older artifacts; NaN means the simulation did not report a lane. */
   startLane?: Float32Array;
   endLane?: Float32Array;

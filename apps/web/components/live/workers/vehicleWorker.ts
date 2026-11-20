@@ -72,6 +72,7 @@ function computeFrame(
 ): void {
   const cap = Math.min(b.length, MAX_OUTPUT)
   const positions = new Float32Array(cap * 2)
+  const segmentIndices = new Uint32Array(cap)
   const colors = new Uint8Array(cap * 3)
   const weights = new Float32Array(cap) // congestion weight for the heatmap path: 1/speed
   let count = 0
@@ -118,6 +119,7 @@ function computeFrame(
     colors[count * 3 + 1] = g2
     colors[count * 3 + 2] = bl
     weights[count] = speed > 0 ? 1 / speed : 1
+    segmentIndices[count] = i
     count++
   }
 
@@ -125,6 +127,7 @@ function computeFrame(
   // used — a `.subarray()` view still points at the full `MAX_OUTPUT`-sized allocation
   // underneath, which would transfer far more bytes than necessary once `count` is small.
   const outPositions = positions.slice(0, count * 2)
+  const outIndices = segmentIndices.slice(0, count)
   const outColors = colors.slice(0, count * 3)
   const outWeights = weights.slice(0, count)
   ctx.postMessage(
@@ -134,10 +137,11 @@ function computeFrame(
       count,
       positions: outPositions,
       colors: outColors,
+      segmentIndices: outIndices,
       weights: outWeights,
       truncated,
     },
-    [outPositions.buffer, outColors.buffer, outWeights.buffer]
+    [outPositions.buffer, outColors.buffer, outWeights.buffer, outIndices.buffer]
   )
 }
 

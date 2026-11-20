@@ -47,6 +47,7 @@ export async function loadSegments(
 ): Promise<SegmentsTable> {
   const table = await fetchArrowTable(source, "segments.arrow")
   return {
+    placements: JSON.parse(await source.fetchText("placements.json") ?? "[]"),
     length: table.numRows,
     vehicleId: utf8Column(table, "vehicle_id"),
     startLane: table.getChild("start_lane")

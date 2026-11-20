@@ -2,6 +2,7 @@ import { ScatterplotLayer } from "@deck.gl/layers";
 import type { NodesTable } from "../../types/replay";
 
 export interface NodeInfo {
+  hostNode?: string
   nodeId: string;
   position: [number, number];
   hasSignal: boolean;

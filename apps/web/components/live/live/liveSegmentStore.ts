@@ -111,6 +111,7 @@ const DEFAULT_WINDOW_TICKS = 600
 const PRUNE_CHECK_INTERVAL = 500
 
 export class LiveSegmentStore {
+  private placements: NonNullable<SegmentsTable["placements"]> = [];
   private readonly linkGeometry: Map<string, LinkGeometry>
   private readonly nodePoints: Map<string, NodePoint>
   private readonly ticksPerSecond: number
@@ -178,6 +179,11 @@ export class LiveSegmentStore {
         return
       this.lastMotion.set(key, order)
     }
+    if (typeof env.node === "string" && env.node) {
+      const entityId = env.entityId.replace(/[:;]/g, "_");
+      this.placements.push({ entityId, tick: env.tick, node: env.node });
+    }
+    if (env.label === "actor_placement") return
     this.latestTick = Math.max(this.latestTick, env.tick)
     switch (eventType) {
       case "enter_link":
@@ -459,6 +465,12 @@ export class LiveSegmentStore {
    * ones whose current link traversal has already finished.
    */
   snapshot(): SegmentsTable {
+    const cutoff = this.latestTick - this.windowTicks;
+    const baseline = new Map<string, (typeof this.placements)[number]>();
+    for (const p of this.placements)
+      if (p.tick < cutoff && p.tick >= (baseline.get(p.entityId)?.tick ?? -Infinity)) baseline.set(p.entityId, p);
+    this.placements = [...baseline.values(), ...this.placements.filter(p => p.tick >= cutoff)];
+
     const rows: MutableSegment[] = [...this.closed, ...this.open.values()]
     const length = rows.length
 
@@ -499,7 +511,15 @@ export class LiveSegmentStore {
       speedKmh[i] = row.speedKmh
     })
 
+    const compactPlacements: typeof this.placements = [];
+    const previousNodes = new Map<string, string>();
+    for (const p of [...this.placements].sort((a, b) => a.tick - b.tick)) {
+      if (previousNodes.get(p.entityId) !== p.node) compactPlacements.push(p);
+      previousNodes.set(p.entityId, p.node);
+    }
+
     return {
+      placements: compactPlacements,
       length,
       vehicleId,
       vehicleKind,
